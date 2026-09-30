@@ -1,0 +1,640 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Squawk Build Guide</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+<style>
+:root{
+  --ground:#F3F5F6; --surface:#FFFFFF; --sunk:#EAEEF0; --ink:#15212B; --muted:#56636E; --line:#D6DDE2;
+  --accent:#E3A02C; --accent-ink:#8C5300; --accent-soft:#FBF0DC;
+  --info:#2B5C8A; --info-soft:#E6EEF6; --ok:#2B7A4B; --ok-soft:#E3F2E9; --bad:#A63A2E;
+  --code-bg:#1B2630; --code-ink:#E4EAEE; --code-dim:#8FA0AD;
+  --display:"IBM Plex Sans Condensed","Arial Narrow",system-ui,sans-serif;
+  --body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ground:#0E151B; --surface:#151E26; --sunk:#1B2630; --ink:#E3E9ED; --muted:#98A6B1; --line:#27333D;
+    --accent:#E8A93C; --accent-ink:#F2B955; --accent-soft:#34260F;
+    --info:#86B6E2; --info-soft:#17283A; --ok:#6CC08E; --ok-soft:#14291D; --bad:#E58A7E;
+    --code-bg:#0A1016; --code-ink:#E4EAEE; --code-dim:#7D8E9B;
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#0E151B; --surface:#151E26; --sunk:#1B2630; --ink:#E3E9ED; --muted:#98A6B1; --line:#27333D;
+  --accent:#E8A93C; --accent-ink:#F2B955; --accent-soft:#34260F;
+  --info:#86B6E2; --info-soft:#17283A; --ok:#6CC08E; --ok-soft:#14291D; --bad:#E58A7E;
+  --code-bg:#0A1016; --code-ink:#E4EAEE; --code-dim:#7D8E9B;
+}
+*{box-sizing:border-box}
+body{background:var(--ground);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.6;padding-inline:20px;padding-block:0 64px}
+a{color:var(--info)}
+code{font-family:var(--mono);font-size:.86em;background:var(--sunk);padding:.1em .35em;border-radius:4px;overflow-wrap:anywhere}
+h1,h2,h3{font-family:var(--display);line-height:1.15;text-wrap:balance;margin:0}
+p{margin:0}
+
+/* Grid children may shrink below their content (wide code/tables scroll in their own box) */
+.phase>*,.check>*,.step-body>*,.prose>*,.why>*,details.trouble .inner>*{min-width:0}
+
+/* Masthead */
+.mast{max-width:1180px;margin:0 auto;padding-block:36px 24px;display:grid;gap:14px;border-bottom:1px solid var(--line)}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent-ink)}
+.mast h1{font-size:clamp(34px,5vw,52px);font-weight:700;letter-spacing:-.01em}
+.mast .lede{max-width:66ch;color:var(--muted);font-size:17px}
+.progress{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:6px}
+.meter{flex:1 1 260px;max-width:420px;height:8px;border-radius:4px;background:var(--sunk);overflow:hidden}
+.meter span{display:block;height:100%;width:0;background:var(--accent);transition:width .3s}
+.progress .count{font-family:var(--mono);font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.btn-reset{font:inherit;font-size:13px;background:none;border:1px solid var(--line);color:var(--muted);border-radius:6px;padding:3px 10px;cursor:pointer}
+.btn-reset:hover{color:var(--ink);border-color:var(--muted)}
+
+/* Layout */
+.layout{max-width:1180px;margin:0 auto;display:grid;grid-template-columns:230px minmax(0,1fr);gap:48px;padding-top:32px}
+nav.toc{position:sticky;top:calc(env(safe-area-inset-top,0px) + 20px);align-self:start;display:grid;gap:2px;font-size:14px}
+nav.toc .toc-label{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+nav.toc a{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:baseline;text-decoration:none;color:var(--ink);padding:6px 10px;border-radius:6px}
+nav.toc a:hover{background:var(--sunk)}
+nav.toc a .n{font-family:var(--mono);font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+nav.toc a.done .n{color:var(--ok)}
+main{min-width:0;display:grid;gap:64px}
+@media (max-width:900px){.layout{grid-template-columns:minmax(0,1fr)} nav.toc{display:none}}
+
+/* Text blocks */
+.prose{display:grid;gap:14px;max-width:70ch}
+.prose h3{font-size:19px;font-weight:600;margin-top:8px}
+.prose ul{margin:0;padding-left:1.2em;display:grid;gap:6px}
+
+/* Phase */
+.phase{display:grid;gap:22px;scroll-margin-top:24px}
+.phase-head{display:grid;gap:10px}
+.phase-kicker{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.phase-kicker .num{color:var(--accent-ink);font-weight:500}
+.chip{font-family:var(--mono);font-size:11.5px;letter-spacing:.04em;text-transform:none;border:1px solid var(--line);border-radius:999px;padding:1px 9px;color:var(--muted);background:var(--surface)}
+.phase h2{font-size:clamp(26px,3.4vw,34px);font-weight:600}
+.phase .goal{max-width:70ch;font-size:17px}
+.why{max-width:70ch;background:var(--info-soft);border-radius:10px;padding:14px 18px;display:grid;gap:6px;font-size:15px}
+.why>b{font-family:var(--display);font-size:14px;letter-spacing:.06em;text-transform:uppercase;color:var(--info)}
+
+/* Steps */
+ol.steps{list-style:none;margin:0;padding:0;display:grid;gap:0;counter-reset:s;max-width:78ch}
+ol.steps>li{counter-increment:s;display:grid;grid-template-columns:34px minmax(0,1fr);gap:14px;padding:16px 0;border-top:1px solid var(--line)}
+ol.steps>li:last-child{border-bottom:1px solid var(--line)}
+.tick{position:relative;width:26px;height:26px;margin-top:1px}
+.tick input{appearance:none;-webkit-appearance:none;margin:0;width:26px;height:26px;border:1.5px solid var(--muted);border-radius:6px;cursor:pointer;background:var(--surface);display:block}
+.tick .mark{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none;font-family:var(--mono);font-size:12px;color:var(--muted)}
+.tick .mark::before{content:counter(s)}
+.tick input:checked{background:var(--ok);border-color:var(--ok)}
+.tick input:checked + .mark::before{content:"✓";color:var(--surface);font-size:15px;font-family:var(--body)}
+.tick input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.step-body{display:grid;gap:10px;min-width:0}
+.step-body h3{font-family:var(--body);font-size:16.5px;font-weight:600;line-height:1.35}
+li.checked .step-body h3{color:var(--muted);text-decoration:line-through;text-decoration-color:var(--line)}
+.step-body ul,.step-body ol{margin:0;padding-left:1.25em;display:grid;gap:5px}
+.muted{color:var(--muted)}
+.small{font-size:14px}
+
+/* Code */
+.code{position:relative;background:var(--code-bg);border-radius:8px;min-width:0}
+.code pre{margin:0;padding:14px 16px;overflow-x:auto;color:var(--code-ink);font-family:var(--mono);font-size:13px;line-height:1.55}
+.code pre code{background:none;padding:0;font-size:inherit;color:inherit;overflow-wrap:normal}
+.code .lang{position:absolute;left:14px;top:-9px;font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;background:var(--accent);color:#1B1200;border-radius:4px;padding:0 6px}
+.copy{position:absolute;right:8px;top:8px;font-family:var(--mono);font-size:11.5px;background:transparent;color:var(--code-dim);border:1px solid #33424F;border-radius:5px;padding:2px 8px;cursor:pointer}
+.copy:hover{color:var(--code-ink)}
+.cm{color:var(--code-dim)}
+
+/* Boxes */
+.check{background:var(--ok-soft);border-radius:10px;padding:14px 18px;display:grid;gap:8px;max-width:78ch}
+.check>b{font-family:var(--display);font-size:14px;letter-spacing:.06em;text-transform:uppercase;color:var(--ok)}
+.check ul{margin:0;padding-left:1.2em;display:grid;gap:4px}
+details.trouble{max-width:78ch;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+details.trouble summary{cursor:pointer;padding:12px 18px;font-weight:600;list-style:none;display:flex;justify-content:space-between;gap:12px}
+details.trouble summary::-webkit-details-marker{display:none}
+details.trouble summary::after{content:"+";font-family:var(--mono);color:var(--muted)}
+details.trouble[open] summary::after{content:"–"}
+details.trouble .inner{padding:0 18px 16px;display:grid;gap:12px}
+dl.fix{margin:0;display:grid;gap:12px}
+dl.fix dt{font-weight:600;font-size:15px}
+dl.fix dd{margin:4px 0 0;color:var(--muted);font-size:15px}
+.note{max-width:78ch;border:1px dashed var(--accent);background:var(--accent-soft);border-radius:10px;padding:12px 16px;font-size:15px}
+
+/* Tables */
+.tbl{overflow-x:auto;max-width:100%}
+table{border-collapse:collapse;font-size:14px;min-width:520px;width:100%}
+th,td{text-align:left;padding:8px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-family:var(--mono);font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:500}
+td code{white-space:nowrap}
+
+/* Map of the build */
+.flow{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;max-width:980px}
+.flow div{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px 14px;display:grid;gap:4px}
+.flow .k{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent-ink)}
+.flow .t{font-weight:600;font-size:15px;line-height:1.3}
+.flow .d{font-size:13px;color:var(--muted);line-height:1.45}
+
+@media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
+@media (max-width:520px){body{font-size:15.5px} ol.steps>li{grid-template-columns:30px minmax(0,1fr);gap:10px}}
+</style>
+</head><body>
+
+<header class="mast">
+  <div class="eyebrow">Capstone build · DataExpert.io · EGLL</div>
+  <h1>Squawk build guide</h1>
+  <p class="lede">Seven phases, in order, from an empty workspace to a deployed app. Tick each step as you finish it (the ticks are saved in this browser only). Every phase ends with a way to check it worked before you move on.</p>
+  <div class="progress">
+    <div class="meter" aria-hidden="true"><span id="meter"></span></div>
+    <span class="count" id="count">0 of 0 steps</span>
+    <button class="btn-reset" id="reset" type="button">Clear ticks</button>
+  </div>
+</header>
+
+<div class="layout">
+  <nav class="toc" aria-label="Phases">
+    <div class="toc-label">Phases</div>
+    <a href="#overview"><span>How it fits together</span><span class="n"></span></a>
+    <a href="#p0" data-phase="p0"><span>0 · Before you start</span><span class="n"></span></a>
+    <a href="#p1" data-phase="p1"><span>1 · Collect data</span><span class="n"></span></a>
+    <a href="#p2" data-phase="p2"><span>2 · Lakeflow pipeline</span><span class="n"></span></a>
+    <a href="#p3" data-phase="p3"><span>3 · Detect → Lakebase</span><span class="n"></span></a>
+    <a href="#p4" data-phase="p4"><span>4 · The agent</span><span class="n"></span></a>
+    <a href="#p5" data-phase="p5"><span>5 · The app</span><span class="n"></span></a>
+    <a href="#p6" data-phase="p6"><span>6 · CDF analytics</span><span class="n"></span></a>
+    <a href="#p7" data-phase="p7"><span>7 · Prove it and demo</span><span class="n"></span></a>
+    <a href="#ops"><span>Start, stop, defend</span><span class="n"></span></a>
+  </nav>
+
+  <main>
+
+  <!-- OVERVIEW -->
+  <section class="phase" id="overview">
+    <div class="phase-head">
+      <div class="phase-kicker"><span class="num">Read first</span></div>
+      <h2>How it fits together</h2>
+      <p class="goal">You're building four long-running pieces and one app. Each phase adds one piece and proves it works before the next one depends on it.</p>
+    </div>
+    <div class="flow">
+      <div><span class="k">Job task</span><span class="t">Poller</span><span class="d">OpenSky every 30 s, weather every 10 min → JSON files in a volume</span></div>
+      <div><span class="k">Lakeflow</span><span class="t">Bronze → Silver</span><span class="d">Auto Loader, clean, dedupe, feet/knots, enrich; parse METAR/TAF</span></div>
+      <div><span class="k">Job task</span><span class="t">Detector</span><span class="d">Every 15 s: holding + go-around rules → Gold + Lakebase queue</span></div>
+      <div><span class="k">Job task</span><span class="t">Agent worker</span><span class="d">Explains new events, forecasts next hour, scores old forecasts</span></div>
+      <div><span class="k">Databricks App</span><span class="t">Squawk app</span><span class="d">Map, review queue, forecast, chat, analytics</span></div>
+      <div><span class="k">Lakeflow</span><span class="t">CDF analytics</span><span class="d">Lakebase change history → agent accuracy, latency, forecast error</span></div>
+    </div>
+    <div class="prose">
+      <p>All the code is in the <code>squawk</code> folder you downloaded. Almost every decision you'll be asked about lives in one file: <code>app/squawk_lib/config.py</code> (names, the bounding box, stack and runway coordinates, detection thresholds). The shared code sits inside <code>app/</code> because the app folder is deployed as-is and needs it too; the notebooks import it from there.</p>
+      <p>What's already been tested outside Databricks: the detection rules (10 unit tests on synthetic tracks, including one that replays the detector's sliding window), the Silver cleaning and weather parsing (on local Spark), every Lakebase table, role and query (on a real Postgres 16), the agent's tool loop, the analytics views, and the app's screens. What hasn't: anything that needs your workspace, which is what this guide walks you through.</p>
+    </div>
+  </section>
+
+  <!-- PHASE 0 -->
+  <section class="phase" id="p0" data-phase="p0">
+    <div class="phase-head">
+      <div class="phase-kicker"><span class="num">Phase 0</span><span class="chip">30 min</span><span class="chip">today</span></div>
+      <h2>Before you start</h2>
+      <p class="goal">Get your two API keys and put the code into your workspace.</p>
+    </div>
+    <ol class="steps">
+      <li><label class="tick"><input type="checkbox" id="p0-1"><span class="mark" aria-hidden="true"></span></label><div class="step-body">
+        <h3>Create an OpenSky account and an API client</h3>
+        <ol>
+          <li>Register at <a href="https://opensky-network.org" target="_blank" rel="noopener">opensky-network.org</a> and confirm your email.</li>
+          <li>Go to your <b>Account</b> page → <b>API Client</b> and create a client.</li>
+          <li>Download the credentials file. It holds a <code>clientId</code> and a <code>clientSecret</code>. Keep it somewhere private; you'll paste both values in Phase 1.</li>
+        </ol>
+        <p class="muted small">A registered account gets 4,000 credits a day. Our box costs 1 credit per call, so polling every 30 s all day uses 2,880.</p>
+      </div></li>
+      <li><label class="tick"><input type="checkbox" id="p0-2"><span class="mark" aria-hidden="true"></span></label><div class="step-body">
+        <h3>Get your bootcamp LLM key</h3>
+        <p>Use the key from the DataExpert.io onboarding page, as in the Zachy homework. Note whether it's an <b>Anthropic</b> or an <b>OpenAI</b> key.</p>
+      </div></li>
+      <li><label class="tick"><input type="checkbox" id="p0-3"><span class="mark" aria-hidden="true"></span></label><div class="step-body">
+        <h3>Put the code in your workspace</h3>
+        <p><b>Recommended:</b> push the <code>squawk</code> folder to a new GitHub repo, then in Databricks go to <b>Workspace</b> → your home folder → <b>Create → Git folder</b> and paste the repo URL. This also gives you something to submit, and you can commit fixes as you go.</p>
+        <p><b>Quicker:</b> in <b>Workspace</b> → your home folder → <b>Import</b>, choose the zip. Either way you should end up with <code>/Workspace/Users/&lt;you&gt;/squawk</code> containing <code>app</code>, <code>notebooks</code>, <code>pipeline</code> and <code>tests</code>.</p>
+      </div></li>
+      <li><label class="tick"><input type="checkbox" id="p0-4"><span class="mark" aria-hidden="true"></span></label><div class="step-body">
+        <h3>Edit <code>app/squawk_lib/config.py</code></h3>
+        <ul>
+          <li><code>CATALOG</code>: leave as <code>squawk</code> if you're allowed to create catalogs. If not, use a catalog you already own.</li>
+          <li><code>LLM_PROVIDER</code>: <code>"anthropic"</code> or <code>"openai"</code>, to match your key. Check the two model names under <code>LLM_MODELS</code> are ones your key can use.</li>
+          <li>Leave <code>LAKEBASE_ENDPOINT</code> for now; Phase 3 tells you the real value.</li>
+        </ul>
+      </div></li>
+    </ol>
+  </section>
+
+  <!-- PHASE 1 -->
+  <section class="phase" id="p1" data-phase="p1">
+    <div class="phase-head">
+      <div class="phase-kicker"><span class="num">Phase 1</span><span class="chip">Day 1</span><span class="chip">third-party APIs</span></div>
+      <h2>Start collecting data</h2>
+      <p class="goal">By the end of today the poller should be running around the clock, so rows pile up while you build everything else. This is the only phase where waiting costs you days, so do it first.</p>
+    </div>
+    <div class="why"><b>Why land files first</b><p>The poller only writes raw JSON files; it never touches a table. If anything downstream breaks, the raw data is still there and the pipeline can replay it. That's also your answer to "what happens if the API goes down?": the poller retries, skips the cycle, and logs it.</p></div>
+    <ol class="steps">
+      <li><label class="tick"><input type="checkbox" id="p1-1"><span class="mark" aria-hidden="true"></span></label><div class="step-body">
+        <h3>Run <code>notebooks/00_setup</code> top to bottom</h3>
+        <p>Attach it to serverless compute (or any small cluster) and run cell by cell. In section 2, the notebook adds three text boxes at the top: paste your OpenSky client ID, client secret and LLM key, run the save cell, then run the clean-up cell.</p>
+        <p>Section 3 should print something like <code>214 aircraft in the box right now; credits remaining today: 3999</code> and a Heathrow METAR.</p>
+      </div></li>
+      <li><label class="tick"><input type="checkbox" id="p1-2"><span class="mark" aria-hidden="true"></span></label><div class="step-body">
+        <h3>Test the poller for five minutes</h3>
+        <p>Open <code>notebooks/01_poller</code> and <b>Run all</b>. Run by hand it stops after 5 minutes (the job sets 60). You'll see a status line every 10 cycles.</p>
+      </div></li>
+      <li><label class="tick"><input type="checkbox" id="p1-3"><span class="mark" aria-hidden="true"></span></label><div class="step-body">
+        <h3>Create the <code>squawk-live</code> job with the poller task</h3>
+        <ol>
+          <li><b>Jobs &amp; Pipelines</b> → <b>Create</b> → <b>Job</b>. Name it <code>squawk-live</code>.</li>
+          <li>First task: name <code>poller</code>, type <b>Notebook</b>, path <code>…/squawk/notebooks/01_poller</code>, compute <b>Serverless</b>.</li>
+          <li>Parameters: <code>duration_minutes</code> = <code>60</code>.</li>
+          <li><b>Schedules &amp; Triggers</b> → <b>Add trigger</b> → <b>Continuous</b>. The job now restarts the moment each 60-minute run ends.</li>
+          <li>Save. The first run starts on its own.</li>
+        </ol>
+        <p class="muted small">You'll add two more tasks to this same job in Phases 3 and 4.</p>
+      </div></li>
+    </ol>
+    <div class="check"><b>Check it worked</b>
+      <p>In a SQL editor or notebook, after 10 minutes or so:</p>
+      <div class="code"><span class="lang">sql</span><button class="copy" type="button">Copy</button><pre><code>LIST '/Volumes/squawk/raw/landing/opensky/';
+
+SELECT source, http_status, count(*) AS calls, min(credits_remaining) AS credits_left
+FROM squawk.bronze.api_call_log
+GROUP BY ALL;</code></pre></div>
+      <ul><li>A dated folder with a new <code>states_*.json</code> file every 30 s.</li><li>Nearly all calls <code>200</code>, and credits falling by about 120 an hour.</li></ul>
+    </div>
+    <details class="trouble"><summary>If it goes wrong</summary><div class="inner"><dl class="fix">
+      <dt><code>CREATE CATALOG</code> fails with a permissions error</dt><dd>Set <code>CATALOG</code> in config.py to a catalog you own, or ask the bootcamp admin to create <code>squawk</code> for you. Rerun section 1.</dd>
+      <dt><code>OpenSky token request failed: HTTP 401</code></dt><dd>The client ID or secret is wrong, or has a trailing space. Re-enter them in section 2.</dd>
+      <dt>Connection errors or timeouts to opensky-network.org</dt><dd>The workspace may block outbound internet. Ask the admin to allow <code>opensky-network.org</code>, <code>auth.opensky-network.org</code> and <code>aviationweather.gov</code>.</dd>
+      <dt>Aircraft download fails in section 4</dt><dd>Not a blocker. An empty table is created and Silver just won't have aircraft types.</dd>
+    </dl></div></details>
+  </section>
+
+  <!-- PHASE 2 -->
+  <section class="phase" id="p2" data-phase="p2">
+    <div class="phase-head">
+      <div class="phase-kicker"><span class="num">Phase 2</span><span class="chip">Day 2</span><span class="chip">Spark pipeline</span><span class="chip">volume</span></div>
+      <h2>Build the Lakeflow pipeline</h2>
+      <p class="goal">Turn the landed files into clean Bronze and Silver tables with <code>pipeline/etl.py</code>.</p>
+    </div>
+    <div class="why"><b>What Silver does, so you can explain it</b><p>Drops rows with no position, and "stale" rows where OpenSky is repeating a position it heard more than 60 s ago. Removes duplicates of the same aircraft at the same instant (<code>dropDuplicatesWithinWatermark</code>, 2-minute watermark). Converts metres to feet and m/s to knots. Uses GPS altitude where available, because pressure altitude drifts by hundreds of feet with the weather. Joins aircraft type and operator. Quality rules are Lakeflow expectations, so dropped rows are counted, not silently lost.</p></div>
+    <ol class="steps">
+      <li><label class="tick"><input type="checkbox" id="p2-1"><span class="mark" aria-hidden="true"></span></label><div class="step-body">
+        <h3>Create the pipeline</h3>
+        <ol>
+          <li><b>Jobs &amp; Pipelines</b> → <b>Create</b> → <b>ETL pipeline</b>. Name it <code>squawk-etl</code>.</li>
+          <li>Default catalog <code>squawk</code>, default schema <code>bronze</code>. (The code writes to the other schemas with full names.)</li>
+          <li>Source code: add the existing file <code>…/squawk/pipeline/etl.py</code>. Remove any sample file the wizard created.</li>
+          <li>Compute: <b>Serverless</b>. Pipeline mode: <b>Triggered</b> for now, so test runs are cheap.</li>
+        </ol>
+      </div></li>
+      <li><label class="tick"><input type="checkbox" id="p2-2"><span class="mark" aria-hidden="true"></span></label><div class="step-body">
+        <h3>Add the configuration values</h3>
+        <p>In the pipeline's <b>Settings</b> → <b>Configuration</b>, add these keys. They must match config.py:</p>
+        <div class="tbl"><table><thead><tr><th>Key</th><th>Value</th></tr></thead><tbody>
+          <tr><td><code>squawk.catalog</code></td><td><code>squawk</code></td></tr>
+          <tr><td><code>squawk.schema.raw</code></td><td><code>raw</code></td></tr>
+          <tr><td><code>squawk.schema.bronze</code></td><td><code>bronze</code></td></tr>
+          <tr><td><code>squawk.schema.silver</code></td><td><code>silver</code></td></tr>
+        </tbody></table></div>
+      </div></li>
+      <li><label class="tick"><input type="checkbox" id="p2-3"><span class="mark" aria-hidden="true"></span></label><div class="step-body">
+        <h3>Run it once</h3>
+        <p>Click <b>Start</b>. The graph should show four datasets: <code>opensky_states → positions</code> and <code>weather_raw → weather</code>. Click <code>positions</code> and open <b>Data quality</b> to see how many rows each expectation dropped.</p>
+      </div></li>
+      <li><label class="tick"><input type="checkbox" id="p2-4"><span class="mark" aria-hidden="true"></span></label><div class="step-body">
+        <h3>Switch to Continuous</h3>
+        <p>Once a triggered run succeeds, set pipeline mode to <b>Continuous</b> and start it. New files now reach Silver within seconds, which the latency target depends on. You can stop it overnight if you want to save compute; the poller keeps landing files and Auto Loader catches up on the next start.</p>
+      </div></li>
+    </ol>
+    <div class="check"><b>Check it worked</b>
+      <div class="code"><span class="lang">sql</span><button class="copy" type="button">Copy</button><pre><code>SELECT count(*) AS rows, count(DISTINCT icao24) AS aircraft,
+       max(event_ts) AS latest, count(typecode) AS enriched
+FROM squawk.silver.positions;
+
+SELECT obs_time, wind_dir_deg, wind_kt, gust_kt, visibility_sm, ceiling_ft, raw_text
+FROM squawk.silver.weather WHERE kind = 'metar' ORDER BY obs_time DESC LIMIT 5;</code></pre></div>
+      <ul><li><code>latest</code> within a minute or two of now (times are UTC).</li><li>Weather rows with wind and visibility filled in.</li></ul>
+    </div>
+    <details class="trouble"><summary>If it goes wrong</summary><div class="inner"><dl class="fix">
+      <dt><code>cannot import name 'pipelines' from 'pyspark'</code></dt><dd>The pipeline is on an older runtime. Change the first import to <code>import dlt as dp</code>; the decorators have the same names. Or set the pipeline channel to <b>Preview</b>.</dd>
+      <dt><code>Table or view not found: …silver.aircraft_ref</code></dt><dd>Run section 4 of <code>00_setup</code>, then restart the pipeline.</dd>
+      <dt>Silver is empty but Bronze has rows</dt><dd>Check the <b>Data quality</b> tab. If <code>inside_box</code> drops everything, the bounding box in etl.py doesn't match config.py.</dd>
+    </dl></div></details>
+  </section>
+
+  <!-- PHASE 3 -->
+  <section class="phase" id="p3" data-phase="p3">
+    <div class="phase-head">
+      <div class="phase-kicker"><span class="num">Phase 3</span><span class="chip">Days 2–3</span><span class="chip">Lakebase data model</span><span class="chip">velocity</span></div>
+      <h2>Detect events and queue them in Lakebase</h2>
+      <p class="goal">Create the Lakebase tables, then run the detector so holding episodes and go-arounds appear in Gold and in the Lakebase queue.</p>
+    </div>
+    <div class="why"><b>Two decisions worth knowing</b><p><b>Deterministic IDs.</b> The detector re-reads the last three hours every 15 s, so it sees the same holding episode hundreds of times. Each episode's ID is a hash of aircraft + type + start time, so every write is an idempotent upsert and nothing is ever duplicated.</p><p><b>The agent's role.</b> <code>02_lakebase_setup</code> creates a Postgres role, <code>squawk_agent</code>, that can only insert assessments and forecasts and change an event's status. The agent switches to it with <code>SET ROLE</code>, so Postgres itself refuses anything else, not just the Python code.</p></div>
+    <ol class="steps">
+      <li><label class="tick"><input type="checkbox" id="p3-1"><span class="mark" aria-hidden="true"></span></label><div class="step-body">
+        <h3>Create a Lakebase project</h3>
+        <p>Open <b>Lakebase</b> (in the left sidebar, or the app switcher at the top right, depending on your workspace) → <b>New project</b>. Name it <code>squawk</code> and keep the defaults: a <code>production</code> branch, one read-write endpoint, scale-to-zero on.</p>
+      </div></li>
+      <li><label class="tick"><input type="checkbox" id="p3-2"><span class="mark" aria-hidden="true"></span></label><div class="step-body">
+        <h3>Point the config at it</h3>
+        <p><b>Run all</b> in <code>notebooks/02_lakebase_setup</code>. The first time, it lists every Lakebase project, branch and endpoint you can see, then stops with a message asking for the endpoint. That stop is expected. Copy your project's endpoint name (<code>projects/…/branches/…/endpoints/…</code>) into <code>LAKEBASE_ENDPOINT</code> in config.py and into <code>app/app.yaml</code>, then <b>Run all</b> again.</p>
+        <p class="muted small">The notebook is safe to run all at any time: sections 4 and 5 skip themselves until Phases 5 and 6.</p>
+      </div></li>
+      <li><label class="tick"><input type="checkbox" id="p3-3"><span class="mark" aria-hidden="true"></span></label><div class="step-body">
+        <h3>Create the tables and the agent role</h3>
+        <p>That second run also does sections 2 and 3, which create the four tables and the <code>squawk_agent</code> role. The last cell in section 3 tries to write a review as the agent and should print <code>Good - refused as expected: permission denied for table analyst_reviews</code>. Screenshot that; it's evidence for your write-up.</p>
+      </div></li>
+      <li><label class="tick"><input type="checkbox" id="p3-4"><span class="mark" aria-hidden="true"></span></label><div class="step-body">
+        <h3>Run one detector cycle by hand</h3>
+        <p>Open <code>notebooks/03_detector</code> and run up to and including the cell marked <i>Run ONE cycle by hand</i>. It shows the positions it read and any episodes found.</p>
+        <p class="muted small">No episodes is normal outside busy periods. Heathrow holds most in the morning arrival peak, roughly 06:00–10:00 UK time (05:00–09:00 UTC while the UK is on summer time).</p>
+      </div></li>
+      <li><label class="tick"><input type="checkbox" id="p3-5"><span class="mark" aria-hidden="true"></span></label><div class="step-body">
+        <h3>Add the detector to the job</h3>
+        <p>In <code>squawk-live</code>, add a task <code>detector</code>: notebook <code>…/notebooks/03_detector</code>, serverless, parameter <code>duration_minutes</code> = <code>60</code>, <b>no dependency</b> on the poller (they run side by side). Save; it joins the next run of the job.</p>
+      </div></li>
+    </ol>
+    <div class="check"><b>Check it worked</b>
+      <p>During a busy period:</p>
+      <div class="code"><span class="lang">sql</span><button class="copy" type="button">Copy</button><pre><code>SELECT event_type, location, callsign, started_at, round(duration_s / 60, 1) AS minutes,
+       first_detected_at, trigger_ts
+FROM squawk.gold.disruption_episodes ORDER BY started_at DESC LIMIT 20;
+
+SELECT stack, max(holding_count) AS peak_last_hour
+FROM squawk.gold.stack_occupancy_1min
+WHERE minute > current_timestamp() - INTERVAL 1 HOUR GROUP BY stack;</code></pre></div>
+      <p>And in Lakebase (add a new cell at the end of <code>02_lakebase_setup</code>, after a Run all):</p>
+      <div class="code"><span class="lang">python</span><button class="copy" type="button">Copy</button><pre><code>print(pg_df(conn, "SELECT status, event_type, count(*) FROM disruption_events GROUP BY 1, 2"))</code></pre></div>
+    </div>
+    <details class="trouble"><summary>If it goes wrong, or you get too many or too few events</summary><div class="inner"><dl class="fix">
+      <dt>Lots of holding events that look wrong</dt><dd>Look at a few tracks. Tighten <code>hold_turn_deg</code> (for example to 540) or <code>stack_radius_nm</code> in <code>DETECT</code> in config.py. Rejecting false ones in the app later gives you a detection-precision number, so some noise is useful evidence.</dd>
+      <dt>Holding clearly happening but nothing detected</dt><dd>Check that positions near the stacks are in Silver above 7,000 ft, and that the gaps between positions are under 2 minutes (the turn count ignores bigger gaps).</dd>
+      <dt>Go-arounds never appear</dt><dd>They're rare (a handful a day at most) and need good low-altitude coverage near the runways. If coverage is patchy, say so in your write-up and let holding carry the project. That was the plan B in the proposal.</dd>
+      <dt><code>password authentication failed</code> or <code>endpoint not found</code></dt><dd><code>LAKEBASE_ENDPOINT</code> is wrong or the notebook is still using the old config. Fix it and rerun from the top (the restart cell reloads config.py).</dd>
+      <dt><code>Could not create the role</code></dt><dd>Your Lakebase role isn't allowed to create roles. The worker then writes as you and the rules are enforced only in the tool code. Carry on, and mention it in the write-up.</dd>
+    </dl></div></details>
+  </section>
+
+  <!-- PHASE 4 -->
+  <section class="phase" id="p4" data-phase="p4">
+    <div class="phase-head">
+      <div class="phase-kicker"><span class="num">Phase 4</span><span class="chip">Days 4–5</span><span class="chip">action-taking agent</span></div>
+      <h2>Switch on the agent</h2>
+      <p class="goal">The worker explains each new event, forecasts next-hour holding and scores its old forecasts.</p>
+    </div>
+    <div class="why"><b>What the agent can and can't do</b><p>Five read tools: <code>list_open_events</code>, <code>get_flight_track</code>, <code>get_weather</code>, <code>get_stack_occupancy</code>, <code>get_forecast_accuracy</code>. Two write tools: <code>save_assessment</code> and <code>save_forecast</code>. The write tools validate every argument, insert with <code>ON CONFLICT DO NOTHING</code> (one assessment per event per model version), and only move an event from <code>detected</code> to <code>assessed</code>, so the agent can never overwrite an analyst's decision. Each run is capped at about 8 tool calls. The chat in the app only gets the read tools.</p></div>
+    <ol class="steps">
+      <li><label class="tick"><input type="checkbox" id="p4-1"><span class="mark" aria-hidden="true"></span></label><div class="step-body">
+        <h3>Try one event by hand</h3>
+        <p>Once the detector has produced at least one event, open <code>notebooks/04_agent_worker</code> and run up to and including <i>Try it on one event first</i>. It should print the agent's one-line conclusion and <code>Status now: assessed</code>.</p>
+      </div></li>
+      <li><label class="tick"><input type="checkbox" id="p4-2"><span class="mark" aria-hidden="true"></span></label><div class="step-body">
+        <h3>Look at the trace</h3>
+        <p>Open <b>Experiments</b> → <code>squawk-agent</code> → <b>Traces</b>. You should see the model call each tool and then <code>save_assessment</code>. The trace ID is also saved on the assessment row, so the app can link an explanation back to its evidence.</p>
+      </div></li>
+      <li><label class="tick"><input type="checkbox" id="p4-3"><span class="mark" aria-hidden="true"></span></label><div class="step-body">
+        <h3>Add the worker to the job</h3>
+        <p>In <code>squawk-live</code>, add a task <code>agent_worker</code>: notebook <code>…/notebooks/04_agent_worker</code>, serverless, <code>duration_minutes</code> = <code>60</code>, no dependencies. You now have three tasks running side by side.</p>
+      </div></li>
+    </ol>
+    <div class="check"><b>Check it worked</b>
+      <ul>
+        <li>Events move from <code>detected</code> to <code>assessed</code> within a minute or so (rerun the Lakebase count from Phase 3).</li>
+        <li>A row appears in <code>holding_forecasts</code> for the next hour, and gets <code>status = 'scored'</code> about five minutes after that hour ends.</li>
+      </ul>
+    </div>
+    <details class="trouble"><summary>If it goes wrong</summary><div class="inner"><dl class="fix">
+      <dt><code>model not found</code> or 404 from the LLM</dt><dd>Change the model names in <code>LLM_MODELS</code> in config.py to ones your bootcamp key allows, then restart the worker.</dd>
+      <dt><code>not saved (attempt 1)</code> in the worker output</dt><dd>The model replied without calling <code>save_assessment</code>. It retries once, then skips the event. If it happens a lot, set <code>ASSESS_MODEL = "smart"</code> in config.py so assessments use the stronger model (the model name saved with each assessment changes too, so your agreement numbers stay honest).</dd>
+      <dt>Rate-limit errors</dt><dd>In the job, add task parameters <code>max_events_per_cycle</code> = <code>1</code> and <code>cycle_seconds</code> = <code>60</code> to the <code>agent_worker</code> task.</dd>
+    </dl></div></details>
+  </section>
+
+  <!-- PHASE 5 -->
+  <section class="phase" id="p5" data-phase="p5">
+    <div class="phase-head">
+      <div class="phase-kicker"><span class="num">Phase 5</span><span class="chip">Days 6–7</span><span class="chip">frontend</span><span class="chip">deployed app</span></div>
+      <h2>Deploy the app</h2>
+      <p class="goal">A Streamlit Databricks App with the live map, the review queue, forecasts, chat and analytics.</p>
+    </div>
+    <ol class="steps">
+      <li><label class="tick"><input type="checkbox" id="p5-1"><span class="mark" aria-hidden="true"></span></label><div class="step-body">
+        <h3>Create the app</h3>
+        <p><b>Compute</b> → <b>Apps</b> → <b>Create app</b> → <b>Custom</b>. Name it <code>squawk</code>. Don't deploy yet.</p>
+      </div></li>
+      <li><label class="tick"><input type="checkbox" id="p5-2"><span class="mark" aria-hidden="true"></span></label><div class="step-body">
+        <h3>Add three resources, with exactly these keys</h3>
+        <p>In the app's configuration → <b>App resources</b>:</p>
+        <div class="tbl"><table><thead><tr><th>Resource key</th><th>Type</th><th>Pick</th><th>Permission</th></tr></thead><tbody>
+          <tr><td><code>sql-warehouse</code></td><td>SQL warehouse</td><td>any warehouse you can use</td><td>Can use</td></tr>
+          <tr><td><code>llm-key</code></td><td>Secret</td><td>scope <code>squawk</code>, key <code>llm_api_key</code></td><td>Can read</td></tr>
+          <tr><td><code>postgres</code></td><td>Lakebase database</td><td>project <code>squawk</code>, branch <code>production</code>, database <code>databricks_postgres</code></td><td>Can connect and create</td></tr>
+        </tbody></table></div>
+      </div></li>
+      <li><label class="tick"><input type="checkbox" id="p5-3"><span class="mark" aria-hidden="true"></span></label><div class="step-body">
+        <h3>Check <code>app/app.yaml</code>, then deploy</h3>
+        <p>Make sure <code>SQUAWK_LAKEBASE_ENDPOINT</code>, <code>SQUAWK_CATALOG</code> and <code>SQUAWK_LLM_PROVIDER</code> match config.py. Then <b>Deploy</b> with source path <code>/Workspace/Users/&lt;you&gt;/squawk/app</code>.</p>
+      </div></li>
+      <li><label class="tick"><input type="checkbox" id="p5-4"><span class="mark" aria-hidden="true"></span></label><div class="step-body">
+        <h3>Let the app read your Delta tables</h3>
+        <p>Find the app's service principal ID on the app's <b>Authorization</b> tab (a UUID). Run this with your UUID in place of the placeholder:</p>
+        <div class="code"><span class="lang">sql</span><button class="copy" type="button">Copy</button><pre><code>GRANT USE CATALOG ON CATALOG squawk TO `&lt;app-service-principal-id&gt;`;
+GRANT USE SCHEMA, SELECT ON SCHEMA squawk.bronze    TO `&lt;app-service-principal-id&gt;`;
+GRANT USE SCHEMA, SELECT ON SCHEMA squawk.silver    TO `&lt;app-service-principal-id&gt;`;
+GRANT USE SCHEMA, SELECT ON SCHEMA squawk.gold      TO `&lt;app-service-principal-id&gt;`;
+GRANT USE SCHEMA, SELECT ON SCHEMA squawk.analytics TO `&lt;app-service-principal-id&gt;`;</code></pre></div>
+      </div></li>
+      <li><label class="tick"><input type="checkbox" id="p5-5"><span class="mark" aria-hidden="true"></span></label><div class="step-body">
+        <h3>Let the app use the Lakebase tables</h3>
+        <p>In <code>02_lakebase_setup</code>, paste the same UUID into the <code>app_client_id</code> box at the top and <b>Run all</b>. Section 4 then prints <code>Granted app access to …</code>. The app gets read access, plus insert on reviews and update on event status, and nothing else.</p>
+      </div></li>
+      <li><label class="tick"><input type="checkbox" id="p5-6"><span class="mark" aria-hidden="true"></span></label><div class="step-body">
+        <h3>Open the app and review one event</h3>
+        <p>Open the app URL. On <b>Event queue</b>, pick an assessed event, read the agent's reasoning against the altitude chart and METARs, and save a review. Its status should change to <code>confirmed</code> or <code>rejected</code>.</p>
+      </div></li>
+    </ol>
+    <div class="check"><b>Check it worked</b>
+      <ul>
+        <li><b>Live map</b> shows a few hundred aircraft; any that are holding show in red.</li>
+        <li>A review you save appears in <code>analyst_reviews</code>.</li>
+        <li><b>Ask Squawk</b> answers "Which stack is busiest right now?" with numbers.</li>
+      </ul>
+    </div>
+    <details class="trouble"><summary>If it goes wrong</summary><div class="inner">
+      <p>Open the app's <b>Logs</b> tab first. The error there nearly always names the problem.</p>
+      <dl class="fix">
+      <dt><code>permission denied for schema squawk</code> or <code>for table …</code></dt><dd>Step 5 hasn't been run for this app's service principal.</dd>
+      <dt><code>INSUFFICIENT_PERMISSIONS</code> or table not found from the warehouse</dt><dd>Step 4 is missing a grant, or the catalog name differs.</dd>
+      <dt><code>KeyError: 'DATABRICKS_WAREHOUSE_ID'</code></dt><dd>The warehouse resource key isn't exactly <code>sql-warehouse</code>.</dd>
+      <dt>The map is blank but the metrics show numbers</dt><dd>The base map loads from Carto in your browser. A corporate network may block it; the aircraft dots still work.</dd>
+      <dt>Chat replies "Sorry, that failed" with an API-key or authentication error</dt><dd>The secret resource key isn't exactly <code>llm-key</code>, or it points at the wrong secret.</dd>
+    </dl></div></details>
+  </section>
+
+  <!-- PHASE 6 -->
+  <section class="phase" id="p6" data-phase="p6">
+    <div class="phase-head">
+      <div class="phase-kicker"><span class="num">Phase 6</span><span class="chip">Day 8</span><span class="chip">analytics pipeline (CDF)</span></div>
+      <h2>Stream Lakebase changes into analytics</h2>
+      <p class="goal">Turn on Lakebase Change Data Feed and build the analytics views in their own pipeline.</p>
+    </div>
+    <div class="why"><b>Why CDF fits this project</b><p>Every event moves through states: detected, then assessed by the agent, then confirmed or rejected by a person. CDF records each of those changes with a timestamp, which gives you time-to-assess, time-to-review and agent-versus-analyst agreement without adding a single line of logging to the app.</p></div>
+    <ol class="steps">
+      <li><label class="tick"><input type="checkbox" id="p6-1"><span class="mark" aria-hidden="true"></span></label><div class="step-body">
+        <h3>Turn on CDF</h3>
+        <p>In <code>02_lakebase_setup</code>, change <code>ENABLE_CDF = False</code> to <code>True</code> in section 5 and <b>Run all</b>. (Or use the UI: Lakebase → your project → branch → <b>Lakebase CDF</b> tab → <b>Start</b>, source schema <code>squawk</code>, destination <code>squawk.lakebase_cdf</code>.) The last cell lists each table's state.</p>
+      </div></li>
+      <li><label class="tick"><input type="checkbox" id="p6-2"><span class="mark" aria-hidden="true"></span></label><div class="step-body">
+        <h3>Confirm the history tables and their columns</h3>
+        <div class="code"><span class="lang">sql</span><button class="copy" type="button">Copy</button><pre><code>SHOW TABLES IN squawk.lakebase_cdf;
+DESCRIBE squawk.lakebase_cdf.lb_disruption_events_history;</code></pre></div>
+        <p>You should see your columns plus <code>_pg_change_type</code>, <code>_timestamp</code> and <code>_sort_by</code>. If any of those three are named differently, change them in <code>pipeline/analytics.py</code>.</p>
+      </div></li>
+      <li><label class="tick"><input type="checkbox" id="p6-3"><span class="mark" aria-hidden="true"></span></label><div class="step-body">
+        <h3>Create a second, scheduled pipeline for analytics</h3>
+        <p>Keep it separate from <code>squawk-etl</code>, so a problem in analytics can never stop ingestion. <b>Jobs &amp; Pipelines</b> → <b>Create</b> → <b>ETL pipeline</b>, name <code>squawk-analytics</code>, source file <code>…/squawk/pipeline/analytics.py</code>, serverless, mode <b>Triggered</b>. Add these configuration keys, run it once, then add a <b>Schedule</b> every 15 minutes:</p>
+        <div class="tbl"><table><thead><tr><th>Key</th><th>Value</th></tr></thead><tbody>
+          <tr><td><code>squawk.catalog</code></td><td><code>squawk</code></td></tr>
+          <tr><td><code>squawk.schema.gold</code></td><td><code>gold</code></td></tr>
+          <tr><td><code>squawk.schema.analytics</code></td><td><code>analytics</code></td></tr>
+          <tr><td><code>squawk.schema.cdf</code></td><td><code>lakebase_cdf</code></td></tr>
+        </tbody></table></div>
+      </div></li>
+    </ol>
+    <div class="check"><b>Check it worked</b>
+      <div class="code"><span class="lang">sql</span><button class="copy" type="button">Copy</button><pre><code>SELECT * FROM squawk.analytics.daily_summary ORDER BY day DESC;
+SELECT * FROM squawk.analytics.agent_agreement;</code></pre></div>
+      <p>The app's <b>Analytics</b> tab now shows both tables.</p>
+    </div>
+    <details class="trouble"><summary>If CDF won't start</summary><div class="inner"><dl class="fix">
+      <dt>An error about external or default storage</dt><dd>CDF needs a destination catalog backed by external storage. Ask the bootcamp admin for one, set <code>CDF_CATALOG</code> in section 5 of <code>02_lakebase_setup</code>, and add <code>squawk.cdf_catalog</code> with the same value to the pipeline configuration.</dd>
+      <dt>A table shows as <code>skipped</code></dt><dd>Empty tables are skipped until they get their first row. Review an event in the app, then check again.</dd>
+      <dt>The history tables exist but the pipeline fails</dt><dd>Row filters or column masks on the history tables break CDF. Don't add any.</dd>
+    </dl></div></details>
+  </section>
+
+  <!-- PHASE 7 -->
+  <section class="phase" id="p7" data-phase="p7">
+    <div class="phase-head">
+      <div class="phase-kicker"><span class="num">Phase 7</span><span class="chip">Days 9–10</span><span class="chip">evidence</span></div>
+      <h2>Prove it and rehearse the demo</h2>
+      <p class="goal">Collect the numbers that show each requirement is met, and practise the demo at a time when something is actually happening.</p>
+    </div>
+    <ol class="steps">
+      <li><label class="tick"><input type="checkbox" id="p7-1"><span class="mark" aria-hidden="true"></span></label><div class="step-body">
+        <h3>Volume: show you passed a million rows</h3>
+        <div class="code"><span class="lang">sql</span><button class="copy" type="button">Copy</button><pre><code>SELECT count(*) AS silver_rows, min(event_ts) AS since FROM squawk.silver.positions;
+SELECT count(*) AS bronze_rows FROM squawk.bronze.opensky_states;</code></pre></div>
+      </div></li>
+      <li><label class="tick"><input type="checkbox" id="p7-2"><span class="mark" aria-hidden="true"></span></label><div class="step-body">
+        <h3>Velocity: report the measured latency</h3>
+        <p><code>latency_p50_s</code> and <code>latency_p95_s</code> in <code>daily_summary</code> are the seconds from the position that triggered a detection to the event reaching the queue. Quote the p95. If it's over 60 s, the usual cause is the pipeline running Triggered instead of Continuous.</p>
+      </div></li>
+      <li><label class="tick"><input type="checkbox" id="p7-3"><span class="mark" aria-hidden="true"></span></label><div class="step-body">
+        <h3>Agent quality: review at least 20 events</h3>
+        <p>Honest reviews, including disagreements, give you the agreement rate and detection precision in <code>agent_agreement</code>. A few disagreements make a better write-up than 100%.</p>
+      </div></li>
+      <li><label class="tick"><input type="checkbox" id="p7-4"><span class="mark" aria-hidden="true"></span></label><div class="step-body">
+        <h3>Rehearse the demo in the morning peak</h3>
+        <p>Plan it for roughly 06:00–10:00 UK time, when Heathrow is most likely to be holding. If it's quiet on the day, the queue still shows the last 24 hours of events, forecasts and reviews, so the demo works either way. A suggested order: map → an event with the agent's reasoning → save a review → the forecast chart → one chat question → the analytics tab.</p>
+      </div></li>
+    </ol>
+    <div class="tbl"><table><thead><tr><th>Requirement</th><th>Your evidence</th></tr></thead><tbody>
+      <tr><td>Spark data pipeline</td><td>Pipeline graph screenshot + Data quality tab</td></tr>
+      <tr><td>Third-party API</td><td><code>api_call_log</code> query (status codes, credits)</td></tr>
+      <tr><td>Lakebase data model</td><td>The four tables + the "refused as expected" output</td></tr>
+      <tr><td>Action-taking agent</td><td>An MLflow trace ending in <code>save_assessment</code></td></tr>
+      <tr><td>CDF analytics pipeline</td><td><code>lb_*_history</code> tables + <code>daily_summary</code></td></tr>
+      <tr><td>Frontend, deployed</td><td>App URL + a review saved in the demo</td></tr>
+      <tr><td>Volume + velocity</td><td>Row count above 1M + measured p95 latency</td></tr>
+    </tbody></table></div>
+  </section>
+
+  <!-- OPS -->
+  <section class="phase" id="ops">
+    <div class="phase-head">
+      <div class="phase-kicker"><span class="num">Reference</span></div>
+      <h2>Start, stop and defend it</h2>
+    </div>
+    <div class="prose">
+      <h3>Starting everything</h3>
+      <ul>
+        <li>Pipeline <code>squawk-etl</code>: Start (Continuous). <code>squawk-analytics</code> runs on its 15-minute schedule.</li>
+        <li>Job <code>squawk-live</code>: the continuous trigger keeps it running. If you paused it, resume it.</li>
+        <li>App <code>squawk</code>: Start, if it isn't running.</li>
+      </ul>
+      <h3>Stopping everything</h3>
+      <p>Pause the job's continuous trigger, stop <code>squawk-etl</code>, pause the <code>squawk-analytics</code> schedule and stop the app. Lakebase scales to zero on its own. Once you've been graded, do this so you're not running shared bootcamp compute.</p>
+      <h3>Questions you'll probably be asked</h3>
+      <ul>
+        <li><b>Why rules and not a model for detection?</b> Every threshold can be explained and tuned, it needs no labelled data, and analyst reviews measure its precision directly.</li>
+        <li><b>Why 30-second polling?</b> 2,880 of 4,000 daily credits, leaving room for retries, and still under the one-minute target.</li>
+        <li><b>Why GPS altitude?</b> Pressure altitude is off by about 27 ft per hPa away from standard pressure, which is hundreds of feet on a high-pressure day.</li>
+        <li><b>How do you stop duplicate events?</b> Deterministic IDs plus <code>ON CONFLICT</code> upserts and a Delta <code>MERGE</code>.</li>
+        <li><b>What stops the agent doing damage?</b> Validated tool arguments, a restricted Postgres role, an update that only ever moves detected → assessed, a tool-call cap, and a read-only chat.</li>
+        <li><b>Why Lakebase and Delta both?</b> Lakebase holds small, constantly updated operational rows the app and agent write to. Delta holds the append-heavy telemetry and the analytics. CDF connects them.</li>
+      </ul>
+    </div>
+  </section>
+
+  </main>
+</div>
+
+<script>
+(function(){
+  var KEY = "squawk-guide-ticks-v1";
+  var boxes = Array.prototype.slice.call(document.querySelectorAll('ol.steps input[type="checkbox"]'));
+  var saved = {};
+  try { saved = JSON.parse(localStorage.getItem(KEY) || "{}") || {}; } catch (e) { saved = {}; }
+
+  function render(){
+    var done = 0;
+    boxes.forEach(function(b){
+      var li = b.closest("li");
+      if (li) li.classList.toggle("checked", b.checked);
+      if (b.checked) done++;
+    });
+    document.getElementById("meter").style.width = (boxes.length ? (done / boxes.length * 100) : 0) + "%";
+    document.getElementById("count").textContent = done + " of " + boxes.length + " steps";
+    document.querySelectorAll("nav.toc a[data-phase]").forEach(function(a){
+      var id = a.getAttribute("data-phase");
+      var mine = boxes.filter(function(b){ return b.id.indexOf(id + "-") === 0; });
+      var n = mine.filter(function(b){ return b.checked; }).length;
+      a.querySelector(".n").textContent = n + "/" + mine.length;
+      a.classList.toggle("done", mine.length > 0 && n === mine.length);
+    });
+  }
+  boxes.forEach(function(b){
+    b.checked = !!saved[b.id];
+    b.setAttribute("aria-label", "Mark step done");
+    b.addEventListener("change", function(){
+      saved[b.id] = b.checked;
+      try { localStorage.setItem(KEY, JSON.stringify(saved)); } catch (e) {}
+      render();
+    });
+  });
+  document.getElementById("reset").addEventListener("click", function(){
+    boxes.forEach(function(b){ b.checked = false; });
+    saved = {};
+    try { localStorage.removeItem(KEY); } catch (e) {}
+    render();
+  });
+  document.querySelectorAll(".copy").forEach(function(btn){
+    btn.addEventListener("click", function(){
+      var text = btn.parentElement.querySelector("code").innerText;
+      var done = function(){ btn.textContent = "Copied"; setTimeout(function(){ btn.textContent = "Copy"; }, 1400); };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done, function(){ selectText(btn); });
+      } else { selectText(btn); }
+    });
+  });
+  function selectText(btn){
+    var r = document.createRange(); r.selectNodeContents(btn.parentElement.querySelector("code"));
+    var s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+    btn.textContent = "Press Ctrl+C";
+  }
+  render();
+})();
+</script>
+</body></html>
