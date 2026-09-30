@@ -20,7 +20,7 @@ BRONZE = spark.conf.get("squawk.schema.bronze", "bronze")
 SILVER = spark.conf.get("squawk.schema.silver", "silver")
 
 LANDING = f"/Volumes/{CATALOG}/{RAW}/landing"
-BBOX = {"lamin": 51.0, "lomin": -1.2, "lamax": 52.0, "lomax": 0.6}   # keep in sync with config.py
+BBOX = {"lamin": 50.60, "lomin": -1.81, "lamax": 52.32, "lomax": 0.89}   # keep in sync with config.py
 
 M_TO_FT, MS_TO_KT, MS_TO_FPM = 3.28084, 1.943844, 196.8504
 

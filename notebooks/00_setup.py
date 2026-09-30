@@ -61,8 +61,8 @@ print(os.listdir(config.VOLUME))
 # MAGIC %md
 # MAGIC ## 2. Store your API credentials as secrets
 # MAGIC 1. Run the next cell once: it adds three text boxes at the top of the notebook.
-# MAGIC 2. Paste your OpenSky `clientId` and `clientSecret` (from the credentials file you downloaded) and your
-# MAGIC    bootcamp LLM API key into the boxes.
+# MAGIC 2. Paste your bootcamp LLM API key into `llm_api_key`. The two OpenSky boxes are optional -
+# MAGIC    leave them empty unless you set `DATA_SOURCE = "opensky"` in config.py.
 # MAGIC 3. Run the cell after it to save them, then run the clean-up cell so the values don't stay on screen.
 
 # COMMAND ----------
@@ -98,25 +98,36 @@ dbutils.widgets.removeAll()   # clean-up: removes the text boxes and their value
 
 # MAGIC %md
 # MAGIC ## 3. Test both APIs
-# MAGIC You should see a list of aircraft over London, your remaining OpenSky credits, and the latest Heathrow METAR.
+# MAGIC You should see a list of aircraft over London and the latest Heathrow METAR.
+# MAGIC (`credits remaining` is only meaningful for OpenSky; adsb.lol has no credit budget.)
 
 # COMMAND ----------
 
 import json
 
-from squawk_lib.sources import OpenSkyClient, fetch_weather, state_rows
+import time
 
-client = OpenSkyClient(
-    dbutils.secrets.get(config.SECRET_SCOPE, "opensky_client_id"),
-    dbutils.secrets.get(config.SECRET_SCOPE, "opensky_client_secret"),
-)
-result = client.fetch_states()
-assert result is not None, "OpenSky call failed - see the api log below"
-api_time, states = result
-rows = state_rows(api_time, states, fetched_at=float(api_time))
-print(f"{len(rows)} aircraft in the box right now; credits remaining today: {client.credits_remaining}")
 import pandas as pd
-display(pd.DataFrame(rows)[["icao24", "callsign", "latitude", "longitude", "baro_altitude", "on_ground"]].head(10))
+
+from squawk_lib.sources import fetch_weather, make_client
+
+
+def opensky_secret(key):
+    try:
+        return dbutils.secrets.get(config.SECRET_SCOPE, key)
+    except Exception:
+        return None            # only needed if DATA_SOURCE is "opensky"
+
+
+client = make_client(config.DATA_SOURCE,
+                     client_id=opensky_secret("opensky_client_id"),
+                     client_secret=opensky_secret("opensky_client_secret"))
+rows = client.fetch_records(fetched_at=time.time())
+print("Source:", config.DATA_SOURCE, "| call log:", client.log)
+assert rows, "No positions returned - see the call log above"
+print(f"{len(rows)} aircraft in range right now; credits remaining today: {client.credits_remaining}")
+display(pd.DataFrame(rows)[["icao24", "callsign", "latitude", "longitude", "baro_altitude",
+                            "geo_altitude", "velocity", "on_ground"]].head(10))
 
 weather = fetch_weather()
 print(f"{len(weather)} weather reports")

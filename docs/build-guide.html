@@ -173,7 +173,7 @@ td code{white-space:nowrap}
       <p class="goal">You're building four long-running pieces and one app. Each phase adds one piece and proves it works before the next one depends on it.</p>
     </div>
     <div class="flow">
-      <div><span class="k">Job task</span><span class="t">Poller</span><span class="d">OpenSky every 30 s, weather every 10 min → JSON files in a volume</span></div>
+      <div><span class="k">Job task</span><span class="t">Poller</span><span class="d">adsb.lol every 15 s, weather every 10 min → JSON files in a volume</span></div>
       <div><span class="k">Lakeflow</span><span class="t">Bronze → Silver</span><span class="d">Auto Loader, clean, dedupe, feet/knots, enrich; parse METAR/TAF</span></div>
       <div><span class="k">Job task</span><span class="t">Detector</span><span class="d">Every 15 s: holding + go-around rules → Gold + Lakebase queue</span></div>
       <div><span class="k">Job task</span><span class="t">Agent worker</span><span class="d">Explains new events, forecasts next hour, scores old forecasts</span></div>
@@ -195,13 +195,12 @@ td code{white-space:nowrap}
     </div>
     <ol class="steps">
       <li><label class="tick"><input type="checkbox" id="p0-1"><span class="mark" aria-hidden="true"></span></label><div class="step-body">
-        <h3>Create an OpenSky account and an API client</h3>
-        <ol>
-          <li>Register at <a href="https://opensky-network.org" target="_blank" rel="noopener">opensky-network.org</a> and confirm your email.</li>
-          <li>Go to your <b>Account</b> page → <b>API Client</b> and create a client.</li>
-          <li>Download the credentials file. It holds a <code>clientId</code> and a <code>clientSecret</code>. Keep it somewhere private; you'll paste both values in Phase 1.</li>
-        </ol>
-        <p class="muted small">A registered account gets 4,000 credits a day. Our box costs 1 credit per call, so polling every 30 s all day uses 2,880.</p>
+        <h3>Check the ADS-B source works from your workspace</h3>
+        <p>Positions come from <a href="https://adsb.lol" target="_blank" rel="noopener">adsb.lol</a>, a volunteer receiver network. No account, no key, no credit budget. Run this in a notebook to confirm your workspace can reach it:</p>
+        <div class="code"><span class="lang">python</span><button class="copy" type="button">Copy</button><pre><code>import requests
+r = requests.get("https://api.adsb.lol/v2/point/51.4775/-0.4614/50", timeout=10)
+print(r.status_code, r.json()["total"], "aircraft within 50 NM of Heathrow")</code></pre></div>
+        <p class="muted small">OpenSky is still supported (set <code>DATA_SOURCE = "opensky"</code> in config.py, with an account and an API client), but it deliberately blocks hosting and cloud-provider IP ranges, so its calls time out from Databricks compute. adsb.lol publishes under the Open Database Licence, so credit it wherever you show the data.</p>
       </div></li>
       <li><label class="tick"><input type="checkbox" id="p0-2"><span class="mark" aria-hidden="true"></span></label><div class="step-body">
         <h3>Get your bootcamp LLM key</h3>
@@ -234,8 +233,8 @@ td code{white-space:nowrap}
     <ol class="steps">
       <li><label class="tick"><input type="checkbox" id="p1-1"><span class="mark" aria-hidden="true"></span></label><div class="step-body">
         <h3>Run <code>notebooks/00_setup</code> top to bottom</h3>
-        <p>Attach it to serverless compute (or any small cluster) and run cell by cell. In section 2, the notebook adds three text boxes at the top: paste your OpenSky client ID, client secret and LLM key, run the save cell, then run the clean-up cell.</p>
-        <p>Section 3 should print something like <code>214 aircraft in the box right now; credits remaining today: 3999</code> and a Heathrow METAR.</p>
+        <p>Attach it to serverless compute (or any small cluster) and run cell by cell. In section 2, the notebook adds three text boxes at the top: paste your LLM key into <code>llm_api_key</code> (the two OpenSky boxes stay empty unless you're using OpenSky), run the save cell, then run the clean-up cell.</p>
+        <p>Section 3 should print the call log, something like <code>214 aircraft in range right now</code>, a table of aircraft, and a Heathrow METAR.</p>
       </div></li>
       <li><label class="tick"><input type="checkbox" id="p1-2"><span class="mark" aria-hidden="true"></span></label><div class="step-body">
         <h3>Test the poller for five minutes</h3>
@@ -257,15 +256,17 @@ td code{white-space:nowrap}
       <p>In a SQL editor or notebook, after 10 minutes or so:</p>
       <div class="code"><span class="lang">sql</span><button class="copy" type="button">Copy</button><pre><code>LIST '/Volumes/squawk/raw/landing/opensky/';
 
-SELECT source, http_status, count(*) AS calls, min(credits_remaining) AS credits_left
+SELECT source, http_status, count(*) AS calls, round(avg(latency_ms)) AS avg_ms,
+       count(error) AS errors
 FROM squawk.bronze.api_call_log
 GROUP BY ALL;</code></pre></div>
-      <ul><li>A dated folder with a new <code>states_*.json</code> file every 30 s.</li><li>Nearly all calls <code>200</code>, and credits falling by about 120 an hour.</li></ul>
+      <ul><li>A dated folder with a new <code>states_*.json</code> file every 15 s.</li><li>Nearly all calls <code>200</code>, with few or no errors.</li></ul>
     </div>
     <details class="trouble"><summary>If it goes wrong</summary><div class="inner"><dl class="fix">
       <dt><code>CREATE CATALOG</code> fails with a permissions error</dt><dd>Set <code>CATALOG</code> in config.py to a catalog you own, or ask the bootcamp admin to create <code>squawk</code> for you. Rerun section 1.</dd>
-      <dt><code>OpenSky token request failed: HTTP 401</code></dt><dd>The client ID or secret is wrong, or has a trailing space. Re-enter them in section 2.</dd>
-      <dt>Connection errors or timeouts to opensky-network.org</dt><dd>The workspace may block outbound internet. Ask the admin to allow <code>opensky-network.org</code>, <code>auth.opensky-network.org</code> and <code>aviationweather.gov</code>.</dd>
+      <dt>Timeouts to <code>opensky-network.org</code></dt><dd>Expected: OpenSky blocks cloud-provider IP ranges on purpose and won't allowlist them, so it can't be used from Databricks. Keep <code>DATA_SOURCE = "adsb.lol"</code>.</dd>
+      <dt>Timeouts to <code>api.adsb.lol</code> or <code>aviationweather.gov</code> too</dt><dd>Then the workspace itself blocks outbound traffic. Test with the snippet in Phase 0 and ask the admin to allow both hosts.</dd>
+      <dt>HTTP 429 from adsb.lol</dt><dd>You're polling too fast for a shared community service. Raise <code>poll_seconds</code> to 20 or 30.</dd>
       <dt>Aircraft download fails in section 4</dt><dd>Not a blocker. An empty table is created and Silver just won't have aircraft types.</dd>
     </dl></div></details>
   </section>
@@ -277,7 +278,7 @@ GROUP BY ALL;</code></pre></div>
       <h2>Build the Lakeflow pipeline</h2>
       <p class="goal">Turn the landed files into clean Bronze and Silver tables with <code>pipeline/etl.py</code>.</p>
     </div>
-    <div class="why"><b>What Silver does, so you can explain it</b><p>Drops rows with no position, and "stale" rows where OpenSky is repeating a position it heard more than 60 s ago. Removes duplicates of the same aircraft at the same instant (<code>dropDuplicatesWithinWatermark</code>, 2-minute watermark). Converts metres to feet and m/s to knots. Uses GPS altitude where available, because pressure altitude drifts by hundreds of feet with the weather. Joins aircraft type and operator. Quality rules are Lakeflow expectations, so dropped rows are counted, not silently lost.</p></div>
+    <div class="why"><b>What Silver does, so you can explain it</b><p>Drops rows with no position, and "stale" rows where the source is repeating a position it heard more than 60 s ago. Removes duplicates of the same aircraft at the same instant (<code>dropDuplicatesWithinWatermark</code>, 2-minute watermark). Converts metres to feet and m/s to knots. Uses GPS altitude where available, because pressure altitude drifts by hundreds of feet with the weather. Joins aircraft type and operator. Quality rules are Lakeflow expectations, so dropped rows are counted, not silently lost.</p></div>
     <ol class="steps">
       <li><label class="tick"><input type="checkbox" id="p2-1"><span class="mark" aria-hidden="true"></span></label><div class="step-body">
         <h3>Create the pipeline</h3>
@@ -542,7 +543,7 @@ SELECT count(*) AS bronze_rows FROM squawk.bronze.opensky_states;</code></pre></
     </ol>
     <div class="tbl"><table><thead><tr><th>Requirement</th><th>Your evidence</th></tr></thead><tbody>
       <tr><td>Spark data pipeline</td><td>Pipeline graph screenshot + Data quality tab</td></tr>
-      <tr><td>Third-party API</td><td><code>api_call_log</code> query (status codes, credits)</td></tr>
+      <tr><td>Third-party API</td><td><code>api_call_log</code> query (status codes, latency, errors)</td></tr>
       <tr><td>Lakebase data model</td><td>The four tables + the "refused as expected" output</td></tr>
       <tr><td>Action-taking agent</td><td>An MLflow trace ending in <code>save_assessment</code></td></tr>
       <tr><td>CDF analytics pipeline</td><td><code>lb_*_history</code> tables + <code>daily_summary</code></td></tr>
@@ -569,7 +570,8 @@ SELECT count(*) AS bronze_rows FROM squawk.bronze.opensky_states;</code></pre></
       <h3>Questions you'll probably be asked</h3>
       <ul>
         <li><b>Why rules and not a model for detection?</b> Every threshold can be explained and tuned, it needs no labelled data, and analyst reviews measure its precision directly.</li>
-        <li><b>Why 30-second polling?</b> 2,880 of 4,000 daily credits, leaving room for retries, and still under the one-minute target.</li>
+        <li><b>Why 15-second polling?</b> Comfortably under the one-minute latency target, while staying polite to a volunteer-run service with no credit budget.</li>
+        <li><b>Why adsb.lol and not OpenSky?</b> OpenSky blocks cloud-provider IPs by policy and won't allowlist, so it times out from Databricks. The proposal named adsb.lol as the fallback; both sources are mapped onto the same record shape, so only the poller changed.</li>
         <li><b>Why GPS altitude?</b> Pressure altitude is off by about 27 ft per hPa away from standard pressure, which is hundreds of feet on a high-pressure day.</li>
         <li><b>How do you stop duplicate events?</b> Deterministic IDs plus <code>ON CONFLICT</code> upserts and a Delta <code>MERGE</code>.</li>
         <li><b>What stops the agent doing damage?</b> Validated tool arguments, a restricted Postgres role, an update that only ever moves detected → assessed, a tool-call cap, and a read-only chat.</li>

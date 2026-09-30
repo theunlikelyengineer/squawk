@@ -2,8 +2,8 @@
 # MAGIC %md
 # MAGIC # 01 · Poller
 # MAGIC
-# MAGIC Polls OpenSky every 30 s and the weather API every 10 min, and lands the raw responses as JSON-lines
-# MAGIC files in the landing volume. Auto Loader (in the Lakeflow pipeline) picks them up from there.
+# MAGIC Polls the ADS-B source (adsb.lol by default) every `poll_seconds` and the weather API every 10 min,
+# MAGIC landing the responses as JSON-lines files in the volume. Auto Loader (in the pipeline) picks them up.
 # MAGIC
 # MAGIC Runs for `duration_minutes`, then exits. As a job task with a **continuous** trigger, the job restarts
 # MAGIC it straight away, so it runs 24/7 until you pause the job.
@@ -19,7 +19,7 @@ dbutils.library.restartPython()
 # COMMAND ----------
 
 dbutils.widgets.text("duration_minutes", "5")   # the job sets 60
-dbutils.widgets.text("poll_seconds", "30")
+dbutils.widgets.text("poll_seconds", "15")   # adsb.lol has no credit budget, so 15 s is fine
 
 # COMMAND ----------
 
@@ -34,19 +34,28 @@ import pandas as pd
 
 sys.path.insert(0, os.path.abspath("../app"))
 from squawk_lib import config
-from squawk_lib.sources import OpenSkyClient, fetch_weather, state_rows
+from squawk_lib.sources import fetch_weather, make_client
 
 DURATION_S = int(dbutils.widgets.get("duration_minutes")) * 60
 POLL_S = int(dbutils.widgets.get("poll_seconds"))
 TMP = f"{config.VOLUME}/_tmp"
 os.makedirs(TMP, exist_ok=True)
 
+def opensky_secret(key):
+    try:
+        return dbutils.secrets.get(config.SECRET_SCOPE, key)
+    except Exception:
+        return None            # not needed when DATA_SOURCE is adsb.lol
+
+
 call_log = []
-client = OpenSkyClient(
-    dbutils.secrets.get(config.SECRET_SCOPE, "opensky_client_id"),
-    dbutils.secrets.get(config.SECRET_SCOPE, "opensky_client_secret"),
+client = make_client(
+    config.DATA_SOURCE,
+    client_id=opensky_secret("opensky_client_id"),
+    client_secret=opensky_secret("opensky_client_secret"),
     log=call_log,
 )
+print("Polling", config.DATA_SOURCE, "every", POLL_S, "s for", int(DURATION_S / 60), "minutes")
 
 
 def land(rows, folder, prefix):
@@ -91,14 +100,12 @@ while time.time() - started < DURATION_S:
     cycle += 1
 
     try:
-        result = client.fetch_states()
-        if result is not None:
-            api_time, states = result
-            rows = state_rows(api_time, states, fetched_at=tick)
+        rows = client.fetch_records(fetched_at=tick)
+        if rows:
             land(rows, config.LANDING_OPENSKY, "states")
             aircraft_total += len(rows)
-    except Exception as e:                      # e.g. token endpoint down: skip this cycle, keep running
-        print(f"cycle {cycle}: OpenSky failed, skipping ({type(e).__name__}: {e})")
+    except Exception as e:                      # API down: skip this cycle, keep running
+        print(f"cycle {cycle}: {config.DATA_SOURCE} failed, skipping ({type(e).__name__}: {e})")
 
     if tick - last_weather >= config.WEATHER_POLL_SECONDS:
         try:

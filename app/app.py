@@ -58,7 +58,7 @@ def reviewer():
 
 st.title("✈️ Squawk")
 st.caption("Arrival disruption at London Heathrow: detected live from ADS-B, explained by an agent, reviewed by you. "
-           "All times UTC.")
+           "All times UTC. Positions: adsb.lol (ODbL). Weather: NOAA Aviation Weather Center.")
 
 tab_map, tab_queue, tab_forecast, tab_chat, tab_analytics = st.tabs(
     ["Live map", "Event queue", "Forecast", "Ask Squawk", "Analytics"])

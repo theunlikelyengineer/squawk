@@ -1,7 +1,14 @@
-"""Clients for the two third-party APIs, with retry, backoff and call logging.
+"""Clients for the third-party APIs, with retry, backoff and call logging.
 
-    OpenSky Network REST API   aircraft positions (OAuth2 client credentials)
-    Aviation Weather Center    METAR + TAF for Heathrow (no auth)
+    adsb.lol                   aircraft positions, no auth            (default)
+    OpenSky Network REST API   aircraft positions, OAuth2 client credentials
+    Aviation Weather Center    METAR + TAF for Heathrow, no auth
+
+Both position sources emit the SAME record shape (OpenSky's field names, metres and
+m/s), so everything downstream - Bronze, Silver, detection - is identical either way.
+
+Note: OpenSky deliberately blocks hosting and cloud-provider IP ranges, so its calls
+time out from Databricks compute. adsb.lol is the working source there.
 """
 import json
 import random
@@ -15,7 +22,10 @@ from . import config
 
 OPENSKY_TOKEN_URL = "https://auth.opensky-network.org/auth/realms/opensky-network/protocol/openid-connect/token"
 OPENSKY_STATES_URL = "https://opensky-network.org/api/states/all"
+ADSBLOL_POINT_URL = "https://api.adsb.lol/v2/point/{lat}/{lon}/{radius}"
 AWC_BASE = "https://aviationweather.gov/api/data"
+
+FT_TO_M, KT_TO_MS, FPM_TO_MS = 0.3048, 0.514444, 1 / 196.8504
 USER_AGENT = "squawk-capstone/1.0 (DataExpert.io bootcamp project)"
 
 # Field order of an OpenSky state vector (index -> name).
@@ -104,6 +114,109 @@ class OpenSkyClient:
             "http_status": status, "latency_ms": int((time.time() - started) * 1000),
             "credits_remaining": self.credits_remaining, "error": err,
         })
+
+
+    def fetch_records(self, fetched_at, poll_id=None):
+        """Positions in the shared record shape, or [] if this cycle should be skipped."""
+        result = self.fetch_states()
+        if result is None:
+            return []
+        api_time, states = result
+        return state_rows(api_time, states, fetched_at, poll_id)
+
+
+class AdsbLolClient:
+    """adsb.lol: every aircraft within a radius of a point. No key, no credit budget.
+
+    Data is contributed by volunteer receiver operators and published under the
+    Open Database Licence - credit adsb.lol wherever you show it.
+    """
+
+    def __init__(self, session=None, log=None, center=None, radius_nm=None):
+        self.http = session or requests.Session()
+        self.http.headers["User-Agent"] = USER_AGENT
+        self.center = center or config.ADSB_CENTER
+        self.radius_nm = radius_nm or config.ADSB_RADIUS_NM
+        self.log = log if log is not None else []
+        self.credits_remaining = None          # adsb.lol has no credit budget
+
+    def fetch_records(self, fetched_at, poll_id=None, max_attempts=3):
+        url = ADSBLOL_POINT_URL.format(lat=self.center["lat"], lon=self.center["lon"],
+                                       radius=self.radius_nm)
+        for attempt in range(1, max_attempts + 1):
+            started, status, err, body = time.time(), None, None, None
+            try:
+                r = self.http.get(url, timeout=10)
+                status = r.status_code
+                if status == 200:
+                    body = r.json()
+            except (requests.Timeout, requests.ConnectionError, ValueError) as e:
+                err = f"{type(e).__name__}: {e}"[:200]
+            self.log.append({
+                "source": "adsblol",
+                "called_at": datetime.fromtimestamp(started, timezone.utc).replace(tzinfo=None),
+                "http_status": status, "latency_ms": int((time.time() - started) * 1000),
+                "credits_remaining": None, "error": err,
+            })
+            if body is not None:
+                return adsblol_rows(body, fetched_at, poll_id)
+            if status == 429:                       # too fast: back off and skip the cycle
+                time.sleep(5)
+                return []
+            if attempt < max_attempts:
+                _backoff_sleep(attempt)
+        return []
+
+
+def _num(value):
+    """adsb.lol uses the string "ground" where an altitude would be."""
+    return value if isinstance(value, (int, float)) else None
+
+
+def adsblol_rows(body, fetched_at, poll_id=None):
+    """Map an adsb.lol response onto the OpenSky-style record shape (metres, m/s)."""
+    poll_id = poll_id or uuid.uuid4().hex
+    now_s = (body.get("now") or int(time.time() * 1000)) / 1000.0
+    rows = []
+    for a in body.get("ac") or []:
+        if a.get("lat") is None or a.get("lon") is None:
+            continue
+        alt_baro, alt_geom = _num(a.get("alt_baro")), _num(a.get("alt_geom"))
+        vr_fpm = a.get("baro_rate") if a.get("baro_rate") is not None else a.get("geom_rate")
+        callsign = (a.get("flight") or "").strip() or None
+        rows.append({
+            "icao24": (a.get("hex") or "").strip().lower(),
+            "callsign": callsign,
+            "origin_country": None,                     # not provided by adsb.lol
+            "time_position": int(now_s - (a.get("seen_pos") or 0)),
+            "last_contact": int(now_s - (a.get("seen") or 0)),
+            "longitude": a.get("lon"),
+            "latitude": a.get("lat"),
+            "baro_altitude": None if alt_baro is None else alt_baro * FT_TO_M,
+            "on_ground": a.get("alt_baro") == "ground",
+            "velocity": None if a.get("gs") is None else a["gs"] * KT_TO_MS,
+            "true_track": a.get("track"),
+            "vertical_rate": None if vr_fpm is None else vr_fpm * FPM_TO_MS,
+            "geo_altitude": None if alt_geom is None else alt_geom * FT_TO_M,
+            "squawk": a.get("squawk"),
+            "spi": bool(a.get("spi")),
+            "position_source": None,
+            "category": None,
+            "poll_id": poll_id, "fetched_at": fetched_at, "api_time": int(now_s),
+        })
+    return rows
+
+
+def make_client(source=None, client_id=None, client_secret=None, log=None):
+    """Build the position client named by config.DATA_SOURCE (or `source`)."""
+    source = (source or config.DATA_SOURCE).lower()
+    if source in ("adsb.lol", "adsblol"):
+        return AdsbLolClient(log=log)
+    if source == "opensky":
+        if not (client_id and client_secret):
+            raise ValueError("OpenSky needs client_id and client_secret")
+        return OpenSkyClient(client_id, client_secret, log=log)
+    raise ValueError(f"Unknown DATA_SOURCE: {source}")
 
 
 def state_rows(api_time, states, fetched_at, poll_id=None):

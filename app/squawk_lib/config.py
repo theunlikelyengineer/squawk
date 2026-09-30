@@ -36,6 +36,12 @@ LAKEBASE_ENDPOINT = _env("SQUAWK_LAKEBASE_ENDPOINT", "projects/squawk/branches/p
 LAKEBASE_DATABASE = _env("PGDATABASE", "databricks_postgres")
 LAKEBASE_SCHEMA = _env("SQUAWK_LAKEBASE_SCHEMA", "squawk")   # Postgres schema for the 4 app tables
 
+# Which ADS-B source to poll.
+#   "adsb.lol"  no key, no credit budget, works from cloud compute  <- default
+#   "opensky"   OAuth2 + 4,000 credits/day, but OpenSky deliberately blocks
+#               hosting and cloud-provider IP ranges, so it times out on Databricks.
+DATA_SOURCE = _env("SQUAWK_DATA_SOURCE", "adsb.lol")
+
 # LLM provider for the agent: "anthropic" or "openai" (whichever key the
 # bootcamp onboarding page gave you). Model names are only defaults: change
 # them to models your key can use.
@@ -79,10 +85,16 @@ TABLES = {
 # Airspace reference data
 # ---------------------------------------------------------------------------
 
-# OpenSky bounding box: about 1.8 square degrees, so 1 API credit per call.
-BBOX = {"lamin": 51.0, "lomin": -1.2, "lamax": 52.0, "lomax": 0.6}
+# adsb.lol: every aircraft within ADSB_RADIUS_NM of Heathrow.
+ADSB_CENTER = {"lat": 51.4775, "lon": -0.4614}
+ADSB_RADIUS_NM = int(_env("SQUAWK_ADSB_RADIUS_NM", "50"))
 
-POLL_SECONDS = int(_env("SQUAWK_POLL_SECONDS", "30"))       # 30 s = 2,880 credits/day if run 24/7
+# Bounding box used by the OpenSky query and by the Silver "inside_box" rule.
+# It covers the adsb.lol circle above, so both sources land in the same area.
+BBOX = {"lamin": 50.60, "lomin": -1.81, "lamax": 52.32, "lomax": 0.89}
+
+# adsb.lol has no credit budget, so we can poll faster than OpenSky's 30 s.
+POLL_SECONDS = int(_env("SQUAWK_POLL_SECONDS", "15"))
 WEATHER_POLL_SECONDS = 600
 
 # Heathrow holding-stack fixes (VOR positions, from OurAirports / UK AIP).
