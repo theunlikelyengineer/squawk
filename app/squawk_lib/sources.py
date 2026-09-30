@@ -1,6 +1,7 @@
 """Clients for the third-party APIs, with retry, backoff and call logging.
 
-    adsb.lol                   aircraft positions, no auth            (default)
+    adsb.lol / adsb.fi /       aircraft positions, no auth, with failover between them
+    airplanes.live                                                   (default)
     OpenSky Network REST API   aircraft positions, OAuth2 client credentials
     Aviation Weather Center    METAR + TAF for Heathrow, no auth
 
@@ -125,47 +126,56 @@ class OpenSkyClient:
         return state_rows(api_time, states, fetched_at, poll_id)
 
 
-class AdsbLolClient:
-    """adsb.lol: every aircraft within a radius of a point. No key, no credit budget.
+class AdsbClient:
+    """Aircraft within a radius of a point, from the community ADS-B networks.
 
-    Data is contributed by volunteer receiver operators and published under the
-    Open Database Licence - credit adsb.lol wherever you show it.
+    All of them serve the same readsb JSON, so we can fail over between them: when one
+    rate-limits us (429) it goes on a short cooldown and the next provider is tried.
+    No key, no credit budget. Data is contributed by volunteer receiver operators and
+    published under the Open Database Licence - credit the network wherever you show it.
     """
 
-    def __init__(self, session=None, log=None, center=None, radius_nm=None):
+    def __init__(self, session=None, log=None, center=None, radius_nm=None, providers=None):
         self.http = session or requests.Session()
         self.http.headers["User-Agent"] = USER_AGENT
         self.center = center or config.ADSB_CENTER
         self.radius_nm = radius_nm or config.ADSB_RADIUS_NM
+        self.providers = providers or config.ADSB_PROVIDERS
+        self.cooldown = {}                     # provider name -> time it can be used again
         self.log = log if log is not None else []
-        self.credits_remaining = None          # adsb.lol has no credit budget
+        self.credits_remaining = None          # these networks have no credit budget
 
-    def fetch_records(self, fetched_at, poll_id=None, max_attempts=3):
-        url = ADSBLOL_POINT_URL.format(lat=self.center["lat"], lon=self.center["lon"],
-                                       radius=self.radius_nm)
-        for attempt in range(1, max_attempts + 1):
+    def _available(self):
+        now = time.time()
+        ready = [p for p in self.providers if self.cooldown.get(p["name"], 0) <= now]
+        return ready or self.providers        # all cooling down: try anyway rather than skip
+
+    def fetch_records(self, fetched_at, poll_id=None):
+        for provider in self._available():
+            url = provider["url"].format(lat=self.center["lat"], lon=self.center["lon"],
+                                         radius=self.radius_nm)
             started, status, err, body = time.time(), None, None, None
             try:
-                r = self.http.get(url, timeout=10)
+                r = self.http.get(url, timeout=20)
                 status = r.status_code
                 if status == 200:
                     body = r.json()
             except (requests.Timeout, requests.ConnectionError, ValueError) as e:
                 err = f"{type(e).__name__}: {e}"[:200]
             self.log.append({
-                "source": "adsblol",
+                "source": provider["name"],
                 "called_at": datetime.fromtimestamp(started, timezone.utc).replace(tzinfo=None),
                 "http_status": status, "latency_ms": int((time.time() - started) * 1000),
                 "credits_remaining": None, "error": err,
             })
             if body is not None:
-                return adsblol_rows(body, fetched_at, poll_id)
-            if status == 429:                       # too fast: back off and skip the cycle
-                time.sleep(5)
-                return []
-            if attempt < max_attempts:
-                _backoff_sleep(attempt)
+                return readsb_rows(body, fetched_at, poll_id)
+            # Rate-limited or broken: rest this provider and try the next one.
+            self.cooldown[provider["name"]] = time.time() + config.ADSB_COOLDOWN_S
         return []
+
+
+AdsbLolClient = AdsbClient          # old name, kept so existing notebooks keep working
 
 
 def _num(value):
@@ -173,12 +183,13 @@ def _num(value):
     return value if isinstance(value, (int, float)) else None
 
 
-def adsblol_rows(body, fetched_at, poll_id=None):
-    """Map an adsb.lol response onto the OpenSky-style record shape (metres, m/s)."""
+def readsb_rows(body, fetched_at, poll_id=None):
+    """Map a readsb-format response (adsb.lol, adsb.fi, airplanes.live) onto the
+    OpenSky-style record shape (metres, m/s). The aircraft array is "ac" or "aircraft"."""
     poll_id = poll_id or uuid.uuid4().hex
     now_s = (body.get("now") or int(time.time() * 1000)) / 1000.0
     rows = []
-    for a in body.get("ac") or []:
+    for a in body.get("ac") or body.get("aircraft") or []:
         if a.get("lat") is None or a.get("lon") is None:
             continue
         alt_baro, alt_geom = _num(a.get("alt_baro")), _num(a.get("alt_geom"))
@@ -207,11 +218,14 @@ def adsblol_rows(body, fetched_at, poll_id=None):
     return rows
 
 
+adsblol_rows = readsb_rows          # old name, kept for compatibility
+
+
 def make_client(source=None, client_id=None, client_secret=None, log=None):
     """Build the position client named by config.DATA_SOURCE (or `source`)."""
     source = (source or config.DATA_SOURCE).lower()
-    if source in ("adsb.lol", "adsblol"):
-        return AdsbLolClient(log=log)
+    if source in ("adsb.lol", "adsblol", "adsb"):
+        return AdsbClient(log=log)
     if source == "opensky":
         if not (client_id and client_secret):
             raise ValueError("OpenSky needs client_id and client_secret")

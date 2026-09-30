@@ -3,7 +3,8 @@ import os
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "app"))
-from squawk_lib.sources import adsblol_rows, state_rows  # noqa: E402
+from squawk_lib import config  # noqa: E402
+from squawk_lib.sources import AdsbClient, readsb_rows, state_rows  # noqa: E402
 
 # Trimmed from a live api.adsb.lol/v2/point/51.4775/-0.4614/30 response.
 SAMPLE = {
@@ -24,7 +25,7 @@ SAMPLE = {
 
 
 def test_maps_to_the_opensky_record_shape():
-    rows = adsblol_rows(SAMPLE, fetched_at=1790778429.0, poll_id="p1")
+    rows = readsb_rows(SAMPLE, fetched_at=1790778429.0, poll_id="p1")
     assert len(rows) == 3, "rows without a position must be dropped"
     assert set(rows[0]) == set(state_rows(1, [["a"] * 18], 1.0, "p1")[0]), "field names must match OpenSky's"
 
@@ -49,8 +50,56 @@ def test_maps_to_the_opensky_record_shape():
 
 
 def test_survives_a_sparse_response():
-    assert adsblol_rows({}, fetched_at=1.0) == []
-    assert adsblol_rows({"ac": [], "now": 1000}, fetched_at=1.0) == []
+    assert readsb_rows({}, fetched_at=1.0) == []
+    assert readsb_rows({"ac": [], "now": 1000}, fetched_at=1.0) == []
+
+
+def test_reads_the_adsb_fi_shape_too():
+    """adsb.fi calls the array "aircraft"; adsb.lol calls it "ac"."""
+    body = {"now": SAMPLE["now"], "aircraft": SAMPLE["ac"]}
+    assert len(readsb_rows(body, fetched_at=1.0)) == 3
+
+
+class _FakeResponse:
+    def __init__(self, status, payload=None):
+        self.status_code, self._payload = status, payload
+
+    def json(self):
+        return self._payload
+
+
+class _FakeSession:
+    """Records which provider URLs were called and replies from a script."""
+
+    def __init__(self, script):
+        self.script, self.calls, self.headers = list(script), [], {}
+
+    def get(self, url, timeout=None):
+        self.calls.append(url)
+        return self.script.pop(0)
+
+
+def test_rate_limited_provider_falls_over_to_the_next_one():
+    session = _FakeSession([_FakeResponse(429), _FakeResponse(200, SAMPLE)])
+    client = AdsbClient(session=session)
+
+    rows = client.fetch_records(fetched_at=1.0)
+    assert len(rows) == 3, "the second provider's data should be used"
+    assert "adsb.lol" in session.calls[0] and "adsb.fi" in session.calls[1]
+    assert client.log[0]["http_status"] == 429 and client.log[0]["source"] == "adsb.lol"
+    assert client.log[1]["source"] == "adsb.fi"
+
+    # adsb.lol is now cooling down, so the next cycle goes straight to adsb.fi.
+    session.script.append(_FakeResponse(200, SAMPLE))
+    client.fetch_records(fetched_at=2.0)
+    assert "adsb.fi" in session.calls[2]
+
+
+def test_returns_nothing_when_every_provider_fails():
+    session = _FakeSession([_FakeResponse(429)] * len(config.ADSB_PROVIDERS))
+    client = AdsbClient(session=session)
+    assert client.fetch_records(fetched_at=1.0) == []
+    assert len(client.log) == len(config.ADSB_PROVIDERS)
 
 
 if __name__ == "__main__":
