@@ -28,6 +28,8 @@ notebooks/
   02_lakebase_setup.py   Lakebase tables, agent role, app grants, Change Data Feed
   03_detector.py         job task: Silver -> Gold episodes -> Lakebase queue
   04_agent_worker.py     job task: agent assessments, hourly forecasts, forecast scoring
+  90_inject_test_hold.py   hand-run: synthetic holding traffic at the sensor boundary (integration fixture)
+  99_threshold_probe.py    hand-run: how far aircraft actually turn, for tuning DETECT thresholds
 pipeline/
   etl.py         Lakeflow: Auto Loader Bronze, Silver positions + weather
   analytics.py   Lakeflow: analytics from Lakebase CDF (its own scheduled pipeline, phase 6)
