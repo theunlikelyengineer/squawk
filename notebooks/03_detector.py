@@ -104,7 +104,10 @@ positions, window_start = load_positions(utcnow())
 episodes = detect_all(positions, window_start)
 print(f"{len(positions)} positions from {positions['icao24'].nunique() if len(positions) else 0} aircraft; "
       f"{len(episodes)} episodes")
-display(episodes)
+if len(episodes):
+    display(episodes)
+else:
+    print("No episodes in this window - normal outside busy periods.")
 
 # COMMAND ----------
 
