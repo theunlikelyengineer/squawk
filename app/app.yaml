@@ -1,16 +1,20 @@
 # Databricks App definition for Squawk.
-# Resources you add in the app's UI (Configure → App resources), with these exact resource keys:
-#   sql-warehouse  SQL warehouse          permission: Can use
-#   llm-key        Secret (squawk/llm_api_key)  permission: Can read
-#   postgres       Lakebase database      permission: Can connect and create
+#
+# Resources to add in the app's UI (Configure -> App resources), with these exact resource keys:
+#   sql-warehouse  SQL warehouse                      permission: Can use
+#   postgres       Lakebase database (squawk)         permission: Can connect and create
+#   llm-fast       Serving endpoint databricks-claude-haiku-4-5    permission: Can query
+#   llm-smart      Serving endpoint databricks-claude-sonnet-4-5   permission: Can query
+#
+# No LLM secret is needed: the agent runs on workspace model serving and authenticates
+# as the app's service principal.
 command: ["streamlit", "run", "app.py"]
 
 env:
   - name: DATABRICKS_WAREHOUSE_ID
     valueFrom: sql-warehouse
-  - name: SQUAWK_LLM_API_KEY
-    valueFrom: llm-key
-  # Paste the same values you put in squawk_lib/config.py:
+
+  # These must match squawk_lib/config.py.
   - name: SQUAWK_LAKEBASE_ENDPOINT
     value: "projects/squawk/branches/production/endpoints/primary"
   - name: SQUAWK_CATALOG
@@ -18,4 +22,4 @@ env:
   - name: SQUAWK_SCHEMA
     value: "student_jcdc9919_capstone"
   - name: SQUAWK_LLM_PROVIDER
-    value: "anthropic"
+    value: "databricks"
