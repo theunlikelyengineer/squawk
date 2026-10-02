@@ -111,10 +111,12 @@ def _trace_id():
 def model_version(kind):
     return f"{config.LLM_PROVIDER}:{config.LLM_MODELS[config.LLM_PROVIDER][kind]}|{config.PROMPT_VERSION}"
 
-
 def build_llm(kind="fast"):
     """kind: "fast" for routine assessments, "smart" for forecasts and chat."""
     name = config.LLM_MODELS[config.LLM_PROVIDER][kind]
+    if config.LLM_PROVIDER == "databricks":
+        from databricks_langchain import ChatDatabricks
+        return ChatDatabricks(endpoint=name, temperature=0, max_tokens=1500)
     kwargs = {}
     if getattr(config, "LLM_BASE_URL", None):
         kwargs["base_url"] = config.LLM_BASE_URL
@@ -122,8 +124,9 @@ def build_llm(kind="fast"):
         kwargs["default_headers"] = dict(config.LLM_HEADERS)
     if config.LLM_PROVIDER == "anthropic":
         from langchain_anthropic import ChatAnthropic
-        return ChatAnthropic(model=name, temperature=0, max_tokens=1500,
-                             timeout=60, max_retries=2, **kwargs)
+        return ChatAnthropic(model=name, temperature=0, max_tokens=1500, timeout=60,
+                             max_retries=2, streaming=getattr(config, "LLM_STREAMING", False),
+                             **kwargs)
     from langchain_openai import ChatOpenAI
     return ChatOpenAI(model=name, temperature=0, timeout=60, max_retries=2, **kwargs)
 

@@ -33,18 +33,24 @@ DATA_SOURCE = _env("SQUAWK_DATA_SOURCE", "adsb.lol")
 # LLM provider for the agent: "anthropic" or "openai" (whichever key the
 # bootcamp onboarding page gave you). Model names are only defaults: change
 # them to models your key can use.
-LLM_PROVIDER = _env("SQUAWK_LLM_PROVIDER", "anthropic")
-# The DataExpert proxy requires a session identifier on every request.
+LLM_MODELS = {
+    "databricks": {"fast": "databricks-claude-haiku-4-5", "smart": "databricks-claude-sonnet-4-5"},
+    "anthropic":  {"fast": "claude-haiku-4-5",            "smart": "claude-sonnet-4-5"},
+    "openai":     {"fast": "gpt-4.1-mini",                "smart": "gpt-4.1"},
+}
+
+# Which model assesses events: "fast" (cheaper) or "smart" (more reliable tool use).
+ASSESS_MODEL = _env("SQUAWK_ASSESS_MODEL", "fast")
+PROMPT_VERSION = "prompt-v1"
+
+# --- only used when LLM_PROVIDER is "anthropic" or "openai" -------------------
+# The DataExpert course proxy: its keys (sk-de-...) work only through this URL,
+# it requires a session identifier header, and it answers with text/event-stream
+# even for non-streaming requests, so the client has to consume SSE.
+LLM_BASE_URL = _env("SQUAWK_LLM_BASE_URL", "https://www.dataexpert.io/api/v1/anthropic")
 LLM_SESSION_ID = _env("SQUAWK_LLM_SESSION_ID", "squawk-capstone")
 LLM_HEADERS = {"x-session-id": LLM_SESSION_ID}
-LLM_BASE_URL = _env("SQUAWK_LLM_BASE_URL", "https://www.dataexpert.io/api/v1/anthropic")
-# The DataExpert proxy responds with text/event-stream even for non-streaming
-# requests, so the client has to consume SSE.
 LLM_STREAMING = _env("SQUAWK_LLM_STREAMING", "1") == "1"
-LLM_MODELS = {
-    "anthropic": {"fast": "claude-haiku-4-5", "smart": "claude-sonnet-4-5"},
-    "openai": {"fast": "gpt-4.1-mini", "smart": "gpt-4.1"},
-}
 # Which model assesses events: "fast" (cheaper) or "smart" (more reliable tool use).
 ASSESS_MODEL = _env("SQUAWK_ASSESS_MODEL", "fast")
 PROMPT_VERSION = "prompt-v1"
