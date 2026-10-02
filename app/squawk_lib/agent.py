@@ -209,14 +209,17 @@ def build_tools(sql_fn, pg_read, pg_agent=None, kind="fast"):
         return _json(_records(df.drop(columns=["lat", "lon"]), 90))
 
     @tool(parse_docstring=True)
-    def get_weather(start_utc: str, end_utc: str) -> str:
+    def get_weather(start_utc: str = "", end_utc: str = "") -> str:
         """Get Heathrow METAR observations for a time window (plus the hour before) and the latest TAF.
 
         Args:
-            start_utc: Start time, ISO format (UTC).
-            end_utc: End time, ISO format (UTC).
+            start_utc: Start time as a full ISO-8601 UTC timestamp, e.g. 2026-10-02T13:00:00Z.
+                Defaults to two hours before end_utc. A bare date will be read as midnight.
+            end_utc: End time as a full ISO-8601 UTC timestamp. Defaults to now.
         """
-        start, end = _utc_ts(start_utc, "start_utc"), _utc_ts(end_utc, "end_utc")
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        end = _utc_ts(end_utc, "end_utc") if end_utc else now
+        start = _utc_ts(start_utc, "start_utc") if start_utc else end - pd.Timedelta(hours=2)
         metars = sql_fn(f"""
             SELECT obs_time, wind_dir_deg, wind_kt, gust_kt, visibility_sm, ceiling_ft, flight_category, raw_text
             FROM {T['weather']}
