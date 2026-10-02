@@ -11,21 +11,9 @@ def _env(name, default):
     return os.environ.get(name, default)
 
 
-# ---------------------------------------------------------------------------
-# YOU EDIT THESE
-# ---------------------------------------------------------------------------
-
-# Unity Catalog catalog that holds everything. If you are not allowed to create
-# a catalog in the bootcamp workspace, set this to a catalog you already own.
-CATALOG = _env("SQUAWK_CATALOG", "squawk")
-
-# One schema per layer. If you can only use ONE schema, set all five to the same
-# schema name: every table name below is unique across layers, so it still works.
-SCHEMA_RAW = _env("SQUAWK_SCHEMA_RAW", "raw")              # holds the landing volume
-SCHEMA_BRONZE = _env("SQUAWK_SCHEMA_BRONZE", "bronze")
-SCHEMA_SILVER = _env("SQUAWK_SCHEMA_SILVER", "silver")
-SCHEMA_GOLD = _env("SQUAWK_SCHEMA_GOLD", "gold")
-SCHEMA_ANALYTICS = _env("SQUAWK_SCHEMA_ANALYTICS", "analytics")
+CATALOG = _env("SQUAWK_CATALOG", "bootcamp_students")
+SQUAWK_SCHEMA = _env("SQUAWK_SCHEMA", "student_jcdc9919_capstone")
+SCHEMA_RAW = SCHEMA_BRONZE = SCHEMA_SILVER = SCHEMA_GOLD = SCHEMA_ANALYTICS = SQUAWK_SCHEMA
 
 # Databricks secret scope holding the API credentials (created in 00_setup).
 SECRET_SCOPE = _env("SQUAWK_SECRET_SCOPE", "squawk")
@@ -46,6 +34,13 @@ DATA_SOURCE = _env("SQUAWK_DATA_SOURCE", "adsb.lol")
 # bootcamp onboarding page gave you). Model names are only defaults: change
 # them to models your key can use.
 LLM_PROVIDER = _env("SQUAWK_LLM_PROVIDER", "anthropic")
+# The DataExpert proxy requires a session identifier on every request.
+LLM_SESSION_ID = _env("SQUAWK_LLM_SESSION_ID", "squawk-capstone")
+LLM_HEADERS = {"x-session-id": LLM_SESSION_ID}
+LLM_BASE_URL = _env("SQUAWK_LLM_BASE_URL", "https://www.dataexpert.io/api/v1/anthropic")
+# The DataExpert proxy responds with text/event-stream even for non-streaming
+# requests, so the client has to consume SSE.
+LLM_STREAMING = _env("SQUAWK_LLM_STREAMING", "1") == "1"
 LLM_MODELS = {
     "anthropic": {"fast": "claude-haiku-4-5", "smart": "claude-sonnet-4-5"},
     "openai": {"fast": "gpt-4.1-mini", "smart": "gpt-4.1"},
@@ -88,6 +83,15 @@ TABLES = {
 # adsb.lol: every aircraft within ADSB_RADIUS_NM of Heathrow.
 ADSB_CENTER = {"lat": 51.4775, "lon": -0.4614}
 ADSB_RADIUS_NM = int(_env("SQUAWK_ADSB_RADIUS_NM", "50"))
+
+# Community ADS-B networks, all serving the same readsb JSON format. The poller uses the
+# first one that answers and rests a provider for a couple of minutes when it 429s.
+ADSB_PROVIDERS = [
+    {"name": "adsb.lol", "url": "https://api.adsb.lol/v2/point/{lat}/{lon}/{radius}"},
+    {"name": "adsb.fi", "url": "https://opendata.adsb.fi/api/v2/lat/{lat}/lon/{lon}/dist/{radius}"},
+    {"name": "airplanes.live", "url": "https://api.airplanes.live/v2/point/{lat}/{lon}/{radius}"},
+]
+ADSB_COOLDOWN_S = 120
 
 # Bounding box used by the OpenSky query and by the Silver "inside_box" rule.
 # It covers the adsb.lol circle above, so both sources land in the same area.

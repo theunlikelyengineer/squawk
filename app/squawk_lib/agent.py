@@ -18,7 +18,7 @@ from datetime import datetime, timezone
 import pandas as pd
 from langchain_core.tools import tool
 
-from . import config
+import config
 from .db import pg_df
 from .detect import haversine_nm
 
@@ -115,11 +115,17 @@ def model_version(kind):
 def build_llm(kind="fast"):
     """kind: "fast" for routine assessments, "smart" for forecasts and chat."""
     name = config.LLM_MODELS[config.LLM_PROVIDER][kind]
+    kwargs = {}
+    if getattr(config, "LLM_BASE_URL", None):
+        kwargs["base_url"] = config.LLM_BASE_URL
+    if getattr(config, "LLM_HEADERS", None):
+        kwargs["default_headers"] = dict(config.LLM_HEADERS)
     if config.LLM_PROVIDER == "anthropic":
         from langchain_anthropic import ChatAnthropic
-        return ChatAnthropic(model=name, temperature=0, max_tokens=1500, timeout=60, max_retries=2)
+        return ChatAnthropic(model=name, temperature=0, max_tokens=1500,
+                             timeout=60, max_retries=2, **kwargs)
     from langchain_openai import ChatOpenAI
-    return ChatOpenAI(model=name, temperature=0, timeout=60, max_retries=2)
+    return ChatOpenAI(model=name, temperature=0, timeout=60, max_retries=2, **kwargs)
 
 
 # ---------------------------------------------------------------------------
@@ -335,10 +341,10 @@ def build_tools(sql_fn, pg_read, pg_agent=None, kind="fast"):
 # ---------------------------------------------------------------------------
 # Agents
 # ---------------------------------------------------------------------------
-
 def _make_agent(llm, tools, prompt):
+    from langchain_core.messages import SystemMessage
     from langgraph.prebuilt import create_react_agent
-    return create_react_agent(llm, tools, prompt=prompt)
+    return create_react_agent(llm, tools, prompt=SystemMessage(content=prompt))
 
 
 def build_worker_agents(sql_fn, pg_read, pg_agent):
@@ -371,13 +377,13 @@ def assess_event(agent, event):
            f"by aircraft {event['icao24']} (callsign {event.get('callsign') or 'unknown'}), "
            f"from {pd.Timestamp(event['started_at']):%Y-%m-%dT%H:%M:%SZ} to "
            f"{pd.Timestamp(event['ended_at']):%Y-%m-%dT%H:%M:%SZ}.")
-    out = agent.invoke({"messages": [("user", msg)]}, config=RUN_CONFIG)
+    out = agent.invoke({"messages": [{"role": "user", "content": msg}]}, config=RUN_CONFIG)
     return _text(out["messages"][-1].content)
 
 
 def issue_forecast(agent, target_hour):
     msg = f"Issue the holding forecast for the target hour starting {pd.Timestamp(target_hour):%Y-%m-%dT%H:00:00Z}."
-    out = agent.invoke({"messages": [("user", msg)]}, config=RUN_CONFIG)
+    out = agent.invoke({"messages": [{"role": "user", "content": msg}]}, config=RUN_CONFIG)
     return _text(out["messages"][-1].content)
 
 
@@ -386,5 +392,5 @@ def chat(agent, history, max_messages=10):
     recent = list(history[-max_messages:])
     while recent and recent[0][0] != "user":     # the conversation sent to the model must start with the user
         recent.pop(0)
-    out = agent.invoke({"messages": recent}, config=RUN_CONFIG)
+    out = agent.invoke({"messages": [{"role": r, "content": t} for r, t in recent]}, config=RUN_CONFIG)
     return _text(out["messages"][-1].content)

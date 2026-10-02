@@ -14,6 +14,8 @@ env:
   - name: SQUAWK_LAKEBASE_ENDPOINT
     value: "projects/squawk/branches/production/endpoints/primary"
   - name: SQUAWK_CATALOG
-    value: "squawk"
+    value: "bootcamp_students"
+  - name: SQUAWK_SCHEMA
+    value: "student_jcdc9919_capstone"
   - name: SQUAWK_LLM_PROVIDER
     value: "anthropic"

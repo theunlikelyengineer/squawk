@@ -1,4 +1,8 @@
 # Databricks notebook source
+# /// script
+# [tool.databricks.environment]
+# environment_version = "6"
+# ///
 # MAGIC %md
 # MAGIC # 02 · Lakebase setup
 # MAGIC
@@ -243,7 +247,7 @@ from databricks.sdk.service.postgres import CdfConfig
 
 ENABLE_CDF = False             # set to True in Phase 6, then Run all
 CDF_CATALOG = config.CATALOG   # change if your admin gives you a different catalog with external storage
-CDF_SCHEMA = "lakebase_cdf"
+CDF_SCHEMA = "student_jcdc9919_capstone"
 
 
 def pg_db_name(d):
