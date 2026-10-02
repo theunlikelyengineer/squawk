@@ -47,6 +47,7 @@ PROMPT_VERSION = "prompt-v1"
 # The DataExpert course proxy: its keys (sk-de-...) work only through this URL,
 # it requires a session identifier header, and it answers with text/event-stream
 # even for non-streaming requests, so the client has to consume SSE.
+LLM_PROVIDER = _env("SQUAWK_LLM_PROVIDER", "databricks")
 LLM_BASE_URL = _env("SQUAWK_LLM_BASE_URL", "https://www.dataexpert.io/api/v1/anthropic")
 LLM_SESSION_ID = _env("SQUAWK_LLM_SESSION_ID", "squawk-capstone")
 LLM_HEADERS = {"x-session-id": LLM_SESSION_ID}

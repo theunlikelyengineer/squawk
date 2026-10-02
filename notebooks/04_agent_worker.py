@@ -19,8 +19,7 @@
 
 # COMMAND ----------
 
-# MAGIC
-# MAGIC %pip install -q "langgraph>=0.6,<2" "langchain-core>=0.3,<2" databricks-langchain langchain-anthropic langchain-openai "psycopg[binary]" "databricks-sdk>=0.81" "mlflow>=3.1"
+# MAGIC  %pip install -q --upgrade "langgraph>=1.2,<2" "langgraph-prebuilt>=1.1,<2" "langchain-core>=1.6,<2" databricks-langchain "psycopg[binary]" "databricks-sdk>=0.81" "mlflow>=3.1"
 
 # COMMAND ----------
 
@@ -56,7 +55,7 @@ if config.LLM_PROVIDER in ("anthropic", "openai"):
 
 me = spark.sql("SELECT current_user()").first()[0]
 mlflow.set_experiment(f"/Users/{me}/squawk-agent")
-#mlflow.langchain.autolog()
+mlflow.langchain.autolog()
 
 pg_read = PgSession()                     # your role: reads + scoring updates
 with pg_read() as conn:
@@ -84,57 +83,6 @@ print(agent.build_llm(config.ASSESS_MODEL).invoke("Reply with the single word: o
 
 # COMMAND ----------
 
-from langchain_anthropic import ChatAnthropic
-
-llm = ChatAnthropic(
-    model=config.LLM_MODELS["anthropic"]["fast"],
-    api_key=key,
-    base_url=base,
-    default_headers={"x-session-id": "squawk-capstone"},
-    max_tokens=64,
-    temperature=0,
-    streaming=True,          # <- the fix
-)
-print(llm.invoke("Reply with the single word: ok").content)
-
-# COMMAND ----------
-
-from databricks.sdk import WorkspaceClient
-
-for e in WorkspaceClient().serving_endpoints.list():
-    print(e.name, "|", getattr(e, "task", None))
-
-# COMMAND ----------
-
-import traceback
-from squawk_lib import agent
-
-try:
-    print(agent.build_llm("fast").invoke("say ok"))
-except Exception:
-    traceback.print_exc()
-
-# COMMAND ----------
-
-from squawk_lib import agent
-from langchain_core.messages import SystemMessage
-
-llm = agent.build_llm("fast")
-
-# 1. the model alone
-print("1:", llm.invoke("Reply with the single word: ok").content)
-
-# 2. the model with your tools bound
-read_tools, write_tools = agent.build_tools(sql_fn, pg_read, pg_agent, kind=config.ASSESS_MODEL)
-print("2:", llm.bind_tools(read_tools + [write_tools[0]]).invoke("What tools do you have?"))
-
-# 3. a bare react agent, no tools, SystemMessage prompt
-from langgraph.prebuilt import create_react_agent
-bare = create_react_agent(llm, [], prompt=SystemMessage(content="You are a test."))
-print("3:", bare.invoke({"messages": [{"role": "user", "content": "say ok"}]})["messages"][-1].content)
-
-# COMMAND ----------
-
 # MAGIC %md
 # MAGIC ### Try it on one event first
 # MAGIC Run this cell by hand once the detector has produced at least one event. Then open the MLflow
@@ -153,6 +101,21 @@ else:
     print(agent.assess_event(assess_agent, ev))
     with pg_read() as conn:
         print("Status now:", store.event_status(conn, ev["event_id"]))
+
+# COMMAND ----------
+
+from squawk_lib.db import pg_df
+
+with pg_read() as conn:
+    row = pg_df(conn, """
+        SELECT cause, severity, confidence, model_version, mlflow_trace_id, reasoning, evidence
+        FROM agent_assessments ORDER BY created_at DESC LIMIT 1
+    """).iloc[0]
+
+for k in ("cause", "severity", "confidence", "model_version"):
+    print(f"{k:14} {row[k]}")
+print("\nreasoning:\n", row["reasoning"])
+print("\nevidence:\n", row["evidence"])
 
 # COMMAND ----------
 

@@ -18,7 +18,7 @@ from datetime import datetime, timezone
 import pandas as pd
 from langchain_core.tools import tool
 
-import config
+from . import config
 from .db import pg_df
 from .detect import haversine_nm
 
