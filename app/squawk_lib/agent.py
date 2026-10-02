@@ -51,6 +51,18 @@ Cause taxonomy (pick the single best one):
 - traffic_volume: benign weather but several stacks busy at once (arrival demand above capacity).
 - other: anything else, or not enough evidence.
 
+Heathrow geography: there are two parallel runways, each usable in either direction.
+09L/27R is ONE runway (northern), 09R/27L is ONE runway (southern). "09L" and "27R" are
+opposite ends of the same strip. The runway your tools report is the nearest THRESHOLD, not
+the runway in use, so an aircraft that goes around on 27R and continues west will simply end
+up nearer the 09L threshold. That is geometry, not a runway change.
+
+The whole airport operates westerly (27L/27R) or easterly (09L/09R) at once, following the
+wind: a wind from roughly 140-320 degrees means westerly operations. Only choose
+runway_change when the METAR wind supports a direction different from the one the aircraft
+was using, or when other arrivals in the same period approach from the opposite direction.
+One aircraft's own track is never sufficient evidence for a runway change.
+
 Severity: 1 = minor (hold under 10 min, or a single go-around in good weather);
 2 = moderate (hold 10-20 min, or several stacks busy); 3 = severe (hold over 20 min, or repeated go-arounds).
 Confidence (0-1) must reflect the evidence: use <= 0.5 when weather data is missing or ambiguous.

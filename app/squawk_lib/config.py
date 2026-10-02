@@ -54,7 +54,7 @@ LLM_HEADERS = {"x-session-id": LLM_SESSION_ID}
 LLM_STREAMING = _env("SQUAWK_LLM_STREAMING", "1") == "1"
 # Which model assesses events: "fast" (cheaper) or "smart" (more reliable tool use).
 ASSESS_MODEL = _env("SQUAWK_ASSESS_MODEL", "fast")
-PROMPT_VERSION = "prompt-v1"
+PROMPT_VERSION = "prompt-v2"
 
 # ---------------------------------------------------------------------------
 # Derived names (you shouldn't need to edit below this line)
