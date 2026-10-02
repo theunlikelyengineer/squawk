@@ -9,10 +9,13 @@
 # MAGIC 3. **Score**: fills in the actual holding for forecasts whose hour has finished.
 # MAGIC
 # MAGIC Every agent run is traced in MLflow (Experiments → `squawk-agent`).
+# MAGIC
+# MAGIC The model comes from `config.LLM_PROVIDER`. The default is `databricks`, which serves Claude
+# MAGIC through the workspace's own model serving - no API key, no third-party gateway.
 
 # COMMAND ----------
 
-# MAGIC %pip install -q "langgraph>=0.6,<2" "langchain-core>=0.3,<2" langchain-anthropic langchain-openai "psycopg[binary]" "databricks-sdk>=0.81" "mlflow>=3.1"
+# MAGIC %pip install -q "langgraph>=0.6,<2" "langchain-core>=0.3,<2" databricks-langchain langchain-anthropic langchain-openai "psycopg[binary]" "databricks-sdk>=0.81" "mlflow>=3.1"
 
 # COMMAND ----------
 
@@ -40,8 +43,11 @@ from squawk_lib import agent, config, store
 from squawk_lib.db import PgSession, spark_sql_fn
 
 spark.conf.set("spark.sql.session.timeZone", "UTC")
-key_env = "ANTHROPIC_API_KEY" if config.LLM_PROVIDER == "anthropic" else "OPENAI_API_KEY"
-os.environ[key_env] = dbutils.secrets.get(config.SECRET_SCOPE, "llm_api_key")
+
+# Only the external providers need a key; "databricks" authenticates as you.
+if config.LLM_PROVIDER in ("anthropic", "openai"):
+    key_env = "ANTHROPIC_API_KEY" if config.LLM_PROVIDER == "anthropic" else "OPENAI_API_KEY"
+    os.environ[key_env] = dbutils.secrets.get(config.SECRET_SCOPE, "llm_api_key")
 
 me = spark.sql("SELECT current_user()").first()[0]
 mlflow.set_experiment(f"/Users/{me}/squawk-agent")
@@ -51,31 +57,53 @@ pg_read = PgSession()                     # your role: reads + scoring updates
 with pg_read() as conn:
     use_role = store.agent_role_available(conn)
 pg_agent = PgSession(role="squawk_agent" if use_role else None)
-print("Agent writes as:", "squawk_agent (restricted role)" if use_role else "your own role (role not available)")
 
 sql_fn = spark_sql_fn(spark)
 assess_agent, forecast_agent = agent.build_worker_agents(sql_fn, pg_read, pg_agent)
 FORECAST_VERSION = agent.model_version("smart")
 
+print("Provider:    ", config.LLM_PROVIDER)
+print("Assess model:", agent.model_version(config.ASSESS_MODEL))
+print("Forecast:    ", FORECAST_VERSION)
+print("Agent writes as:", "squawk_agent (restricted role)" if use_role else "your own role (role not available)")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### Check the model answers at all
+# MAGIC One call, no tools, no agent. If this fails the problem is the model endpoint, not Squawk.
+
+# COMMAND ----------
+
+print(agent.build_llm(config.ASSESS_MODEL).invoke("Reply with the single word: ok").content)
+
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC ### Try it on one event first
-# MAGIC Run this cell by hand once the detector has produced at least one event. Then open the MLflow experiment
-# MAGIC to see the trace: every tool call, its arguments and what came back.
+# MAGIC Run this cell by hand once the detector has produced at least one event. Then open the MLflow
+# MAGIC experiment to see the trace: every tool call, its arguments and what came back.
 
 # COMMAND ----------
 
 with pg_read() as conn:
     todo = store.events_to_assess(conn, 1)
+
 if todo.empty:
-    print("No events waiting - start the detector and wait for some holding.")
+    print("No events waiting - start the detector and wait for an event.")
 else:
     ev = todo.iloc[0].to_dict()
     print("Assessing", ev["event_id"], ev["event_type"], ev["location"], ev["callsign"])
     print(agent.assess_event(assess_agent, ev))
     with pg_read() as conn:
         print("Status now:", store.event_status(conn, ev["event_id"]))
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## The worker loop
+# MAGIC Everything below is what the job runs. Nothing above this point writes anything except the
+# MAGIC single assessment in the test cell.
 
 # COMMAND ----------
 

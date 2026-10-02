@@ -9,3 +9,4 @@ langgraph>=0.6,<2
 langchain-core>=0.3,<2
 langchain-anthropic
 langchain-openai
+databricks-langchain
