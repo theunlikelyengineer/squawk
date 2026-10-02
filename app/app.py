@@ -75,7 +75,7 @@ def live_map():
                max_by(lon, event_ts) AS lon, round(max_by(alt_ft, event_ts)) AS alt_ft,
                max(event_ts) AS last_seen
         FROM {T['positions']}
-        WHERE event_ts > current_timestamp() - INTERVAL 2 MINUTES AND NOT coalesce(on_ground, false)
+        WHERE event_ts > current_timestamp() - INTERVAL 10 MINUTES AND NOT coalesce(on_ground, false)
         GROUP BY icao24""")
     holding = lakebase(store.active_holding_icao24)
     aircraft["holding"] = aircraft["icao24"].isin(holding)
