@@ -187,9 +187,14 @@ def event_detail(ev):
 
 @st.fragment(run_every=REFRESH)
 def event_queue():
-    q = lakebase(store.event_queue, 24)
+    hours = st.selectbox(
+        "Time window", [6, 24, 72, 168], index=2,
+        format_func=lambda h: f"last {h} hours" if h < 48 else f"last {h // 24} days",
+        key="queue_hours",
+    )
+    q = lakebase(store.event_queue, hours)
     if q.empty:
-        st.info("No events in the last 24 hours yet. Holding is most common during the morning arrival peak.")
+        st.info(f"No events in the last {hours} hours. Holding is most common during the morning arrival peak.")
         return
     counts = q["status"].value_counts()
     cols = st.columns(4)

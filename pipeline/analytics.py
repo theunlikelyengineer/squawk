@@ -38,6 +38,7 @@ def latest_rows(table, key):
 @dp.materialized_view(
     name=f"{CATALOG}.{ANALYTICS}.event_lifecycle",
     comment="One row per event: when it was detected, assessed by the agent and reviewed by an analyst.",
+    table_properties={"delta.feature.timestampNtz": "supported"},
 )
 def event_lifecycle():
     h = history("disruption_events").where(F.col("_pg_change_type").isin("insert", "update_postimage"))
@@ -52,7 +53,7 @@ def event_lifecycle():
         first_ts(F.col("status") == "assessed").alias("assessed_at"),
         first_ts(F.col("status").isin("confirmed", "rejected")).alias("reviewed_at"),
     )
-    secs = lambda a, b: F.col(a).cast("long") - F.col(b).cast("long")  # noqa: E731
+    secs = lambda a, b: F.expr(f"timestampdiff(SECOND, {b}, {a})") # noqa: E731
     return (
         out.withColumn("detection_latency_s", secs("detected_at", "trigger_ts"))
         .withColumn("time_to_assess_s", secs("assessed_at", "detected_at"))
@@ -89,6 +90,7 @@ def agent_agreement():
 @dp.materialized_view(
     name=f"{CATALOG}.{ANALYTICS}.forecast_accuracy",
     comment="Each scored forecast next to a naive persistence baseline (next hour = previous hour).",
+     table_properties={"delta.feature.timestampNtz": "supported"},
 )
 def forecast_accuracy():
     fc = latest_rows("holding_forecasts", "forecast_id").where("status = 'scored'")

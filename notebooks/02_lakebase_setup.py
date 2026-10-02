@@ -245,7 +245,7 @@ else:
 
 from databricks.sdk.service.postgres import CdfConfig
 
-ENABLE_CDF = False             # set to True in Phase 6, then Run all
+ENABLE_CDF = True          # set to True in Phase 6, then Run all
 CDF_CATALOG = config.CATALOG   # change if your admin gives you a different catalog with external storage
 CDF_SCHEMA = "student_jcdc9919_capstone"
 
