@@ -39,6 +39,19 @@ except Exception as e:
 
 # COMMAND ----------
 
+import os, sys
+sys.path.insert(0, os.path.abspath("../app"))
+from squawk_lib.db import pg_connect, pg_df
+
+conn = pg_connect()
+print(pg_df(conn, """SELECT verdict, corrected_cause, count(*) AS n
+                     FROM analyst_reviews GROUP BY 1, 2 ORDER BY 1, 2"""))
+print(pg_df(conn, """SELECT status, event_type, count(*) AS n
+                     FROM disruption_events GROUP BY 1, 2 ORDER BY 1, 2"""))
+conn.close()
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC ## 1. Find your Lakebase endpoint
 # MAGIC Lists every Lakebase project you can see, with its branches and endpoints. Copy the **endpoint name** of
